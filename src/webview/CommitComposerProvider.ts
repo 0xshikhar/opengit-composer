@@ -6,6 +6,7 @@ import { ConfigLoader } from '../core/configLoader';
 import { KeyManager } from '../core/keyManager';
 import { DraftCommit } from '../types/commits';
 import { Logger } from '../utils/logger';
+import { OllamaProvider } from '../ai/providers/ollama';
 
 type WebviewSource = 'sidebar' | 'panel';
 
@@ -193,6 +194,12 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                         return;
                     case 'refresh':
                         await this.loadChanges(webview);
+                        return;
+                    case 'loadOllamaModels':
+                        await this.handleLoadOllamaModels(
+                            String(message.baseUrl || 'http://localhost:11434'),
+                            webview
+                        );
                         return;
                     default:
                         Logger.warn('CommitComposerProvider: Unknown message command', { source, command });
@@ -428,6 +435,17 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
         await this._keyManager.resetProvider(provider);
         await webview.postMessage({ command: 'keysReset', provider, success: true, keys: [] });
+    }
+
+    private async handleLoadOllamaModels(baseUrl: string, webview: vscode.Webview): Promise<void> {
+        try {
+            const ollamaProvider = new OllamaProvider({ apiKey: '', model: '', baseUrl });
+            const models = await ollamaProvider.getAvailableModels();
+            await webview.postMessage({ command: 'ollamaModelsLoaded', models });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await webview.postMessage({ command: 'ollamaModelsLoaded', models: [], error: message });
+        }
     }
 
     private async postError(webview: vscode.Webview, error: unknown): Promise<void> {

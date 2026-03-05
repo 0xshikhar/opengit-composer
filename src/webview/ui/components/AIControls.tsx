@@ -7,12 +7,12 @@ const PROVIDERS = [
     { value: 'anthropic', label: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-3-haiku-20240307'] },
     { value: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'] },
     { value: 'kimi', label: 'Kimi (Moonshot)', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
-    { value: 'ollama', label: 'Ollama (Local)', models: ['llama3.2', 'mistral', 'codellama', 'deepseek-coder'] },
+    { value: 'ollama', label: 'Ollama (Local)', models: [] },
 ];
 
 export default function AIControls() {
-    const { providerConfig, setProviderConfig, isLoading, savedKeys, showKeyInput, setShowKeyInput } = useCommitStore();
-    const { loadKeys, saveKey, removeKey, resetKeys } = useVSCodeAPI();
+    const { providerConfig, setProviderConfig, isLoading, savedKeys, showKeyInput, setShowKeyInput, ollamaModels, setOllamaModels } = useCommitStore();
+    const { loadKeys, saveKey, removeKey, resetKeys, postMessage } = useVSCodeAPI();
     const [newKey, setNewKey] = useState('');
     const [newKeyLabel, setNewKeyLabel] = useState('');
 
@@ -21,15 +21,35 @@ export default function AIControls() {
     const keys = savedKeys[providerConfig.provider] || [];
     const hasKeys = keys.length > 0;
 
+    const loadOllamaModels = () => {
+        const baseUrl = providerConfig.baseUrl || 'http://localhost:11434';
+        postMessage('loadOllamaModels', { baseUrl });
+    };
+
     useEffect(() => {
         loadKeys(providerConfig.provider);
     }, [providerConfig.provider]);
+
+    useEffect(() => {
+        if (isLocal) {
+            loadOllamaModels();
+        } else {
+            setOllamaModels([]);
+        }
+    }, [isLocal, providerConfig.baseUrl]);
 
     const handleProviderChange = (provider: string) => {
         setProviderConfig({ provider, model: '', apiKey: '' });
         setShowKeyInput(false);
         setNewKey('');
         setNewKeyLabel('');
+    };
+
+    const handleHostChange = (host: string) => {
+        setProviderConfig({ baseUrl: host });
+        if (isLocal) {
+            loadOllamaModels();
+        }
     };
 
     const handleSaveKey = () => {
@@ -193,7 +213,7 @@ export default function AIControls() {
                         type="text"
                         className="ai-input"
                         value={providerConfig.baseUrl || 'http://localhost:11434'}
-                        onChange={(e) => setProviderConfig({ baseUrl: e.target.value })}
+                        onChange={(e) => handleHostChange(e.target.value)}
                         placeholder="http://localhost:11434"
                         disabled={isLoading}
                     />
@@ -209,7 +229,7 @@ export default function AIControls() {
                     disabled={isLoading}
                 >
                     <option value="">Default</option>
-                    {selectedProvider.models.map(m => (
+                    {(isLocal ? ollamaModels : selectedProvider.models).map(m => (
                         <option key={m} value={m}>{m}</option>
                     ))}
                 </select>

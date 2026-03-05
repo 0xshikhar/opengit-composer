@@ -62,6 +62,9 @@ interface CommitStoreState {
     savedKeys: Record<string, StoredKeyDisplay[]>;
     showKeyInput: boolean;
 
+    // Ollama models
+    ollamaModels: string[];
+
     // View mode
     activeView: 'tree' | 'diff' | 'editor' | 'compose';
 
@@ -78,6 +81,7 @@ interface CommitStoreState {
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
     setSavedKeys: (provider: string, keys: StoredKeyDisplay[]) => void;
     setShowKeyInput: (show: boolean) => void;
+    setOllamaModels: (models: string[]) => void;
 
     // Draft manipulation
     updateDraftMessage: (id: string, message: string) => void;
@@ -113,6 +117,7 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     },
     savedKeys: {},
     showKeyInput: false,
+    ollamaModels: [],
     activeView: 'tree',
 
     // Setters
@@ -134,6 +139,7 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             savedKeys: { ...state.savedKeys, [provider]: keys },
         })),
     setShowKeyInput: (show) => set({ showKeyInput: show }),
+    setOllamaModels: (models) => set({ ollamaModels: models }),
 
     // Draft manipulation
     updateDraftMessage: (id, message) =>
@@ -226,5 +232,6 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             error: null,
             commitProgress: null,
             activeView: 'tree',
+            ollamaModels: [],
         }),
 }));

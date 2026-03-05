@@ -31,7 +31,7 @@ function getVSCodeAPI(): VSCodeAPI {
  */
 export function useVSCodeAPI() {
     const api = getVSCodeAPI();
-    const { setSavedKeys } = useCommitStore();
+    const { setSavedKeys, setOllamaModels } = useCommitStore();
 
     const postMessage = useCallback((command: string, data?: any) => {
         api.postMessage({ command, ...data });
@@ -55,11 +55,16 @@ export function useVSCodeAPI() {
                 setSavedKeys(msg.provider, []);
             }
             
+            // Handle Ollama models
+            if (msg.command === 'ollamaModelsLoaded' && msg.models) {
+                setOllamaModels(msg.models);
+            }
+            
             handler(msg);
         };
         window.addEventListener('message', listener);
         return () => window.removeEventListener('message', listener);
-    }, [setSavedKeys]);
+    }, [setSavedKeys, setOllamaModels]);
 
     // Helper functions for key management
     const loadKeys = useCallback((provider: string) => {

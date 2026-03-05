@@ -46,6 +46,18 @@ export class OllamaProvider extends AIProvider {
         }
     }
 
+    async getAvailableModels(): Promise<string[]> {
+        try {
+            Logger.info('OllamaProvider: Fetching available models');
+            const response = await axios.get(`${this.baseUrl}/api/tags`, { timeout: 10000 });
+            const models = response.data.models || [];
+            return models.map((m: { name: string }) => m.name);
+        } catch (error) {
+            Logger.error('OllamaProvider: Failed to fetch models', error);
+            return [];
+        }
+    }
+
     protected async makeRequest(prompt: string): Promise<any> {
         try {
             const model = this.config.model || 'llama3.2';

@@ -303,21 +303,57 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     ): Promise<void> {
         let resolvedConfig: ComposeProviderConfig = providerConfig || this.getDefaultProviderConfig();
 
-        if (resolvedConfig.provider !== 'ollama' && this._keyManager) {
-            if (!resolvedConfig.apiKey) {
-                const rotatedKey = await this._keyManager.getNextKey(resolvedConfig.provider);
-                if (rotatedKey) {
-                    resolvedConfig = { ...resolvedConfig, apiKey: rotatedKey };
-                }
-            } else {
-                const hasStoredKey = await this._keyManager.hasKey(resolvedConfig.provider);
-                if (!hasStoredKey) {
-                    await this._keyManager.addKey(resolvedConfig.provider, resolvedConfig.apiKey, 'Default');
-                }
+        if (resolvedConfig.provider === 'ollama' || !this._keyManager) {
+            await this.handleCompose(resolvedConfig, webview);
+            return;
+        }
+
+        // If user entered an explicit key, try it first and persist it if this provider has no saved keys yet.
+        if (resolvedConfig.apiKey) {
+            const hasStoredKey = await this._keyManager.hasKey(resolvedConfig.provider);
+            if (!hasStoredKey) {
+                await this._keyManager.addKey(resolvedConfig.provider, resolvedConfig.apiKey, 'Default');
+            }
+
+            try {
+                await this.handleCompose(resolvedConfig, webview);
+                return;
+            } catch (error) {
+                Logger.warn('CommitComposerProvider: Compose failed with explicit key, falling back to rotated stored keys', {
+                    provider: resolvedConfig.provider,
+                    message: error instanceof Error ? error.message : String(error),
+                });
             }
         }
 
-        await this.handleCompose(resolvedConfig, webview);
+        const availableKeys = await this._keyManager.getKeys(resolvedConfig.provider);
+        if (availableKeys.length === 0) {
+            await this.handleCompose(resolvedConfig, webview);
+            return;
+        }
+
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= availableKeys.length; attempt++) {
+            const rotatedKey = await this._keyManager.getNextKey(resolvedConfig.provider);
+            if (!rotatedKey) break;
+
+            try {
+                await this.handleCompose({ ...resolvedConfig, apiKey: rotatedKey }, webview);
+                return;
+            } catch (error) {
+                lastError = error;
+                Logger.warn('CommitComposerProvider: Compose attempt failed, rotating to next key', {
+                    provider: resolvedConfig.provider,
+                    attempt,
+                    totalAttempts: availableKeys.length,
+                    message: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+
+        throw lastError instanceof Error
+            ? lastError
+            : new Error('All configured API keys failed for compose request.');
     }
 
     private async handleCompose(providerConfig: ComposeProviderConfig, webview: vscode.Webview): Promise<void> {

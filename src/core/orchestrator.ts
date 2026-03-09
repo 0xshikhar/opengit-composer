@@ -138,6 +138,13 @@ export class Orchestrator {
                 additionalInstructions: providerConfig.additionalInstructions,
             });
 
+            if (result.parserMeta?.usedFallback) {
+                Logger.warn('Orchestrator: AI response required parser fallback', {
+                    provider: providerConfig.provider,
+                    strategy: result.parserMeta.strategy,
+                });
+            }
+
             const drafts: DraftCommit[] = result.groups.map(group => ({
                 id: group.id || uuidv4(),
                 message: group.message,

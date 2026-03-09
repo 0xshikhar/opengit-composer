@@ -107,6 +107,53 @@ Where:
 Return only the commit message, no JSON.`;
     }
 
+    static buildRepairPrompt(
+        rawModelOutput: string,
+        changes: FileChange[],
+        options: AIAnalyzeOptions = {}
+    ): string {
+        const commitFormat = options.commitFormat || 'conventional';
+        const maxSubjectLength = options.maxSubjectLength || 72;
+        const filePaths = changes.map(change => change.path);
+        const truncatedRaw = rawModelOutput.length > 12000
+            ? `${rawModelOutput.slice(0, 12000)}\n... (truncated)`
+            : rawModelOutput;
+
+        return `Convert the previous model output into valid JSON for commit composition.
+
+Rules:
+1. Output ONLY a single valid JSON object.
+2. Preserve intent from the previous output as much as possible.
+3. Every file must appear exactly once across groups.
+4. Use only these exact file paths:
+${JSON.stringify(filePaths, null, 2)}
+5. Commit format target: ${commitFormat}
+6. Subject max length: ${maxSubjectLength}
+
+Required schema:
+{
+  "summary": "string",
+  "reasoning": "string",
+  "groups": [
+    {
+      "files": ["path/from/list.ts"],
+      "type": "feat|fix|refactor|docs|style|test|chore|perf|ci|build",
+      "scope": "optional",
+      "subject": "string",
+      "body": "optional",
+      "confidence": 0,
+      "rationale": "optional",
+      "impact": "optional",
+      "verification": ["optional checks"],
+      "risks": ["optional risks"]
+    }
+  ]
+}
+
+Previous invalid output:
+${truncatedRaw}`;
+    }
+
     private static buildContextBlock(context?: RepoContext): string {
         if (!context) return 'Repository context: not provided.\n';
 

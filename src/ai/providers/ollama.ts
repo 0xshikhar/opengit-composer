@@ -4,6 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
+import { buildProviderError, requestWithRetry } from './providerUtils';
 
 /**
  * Ollama provider — local model inference via REST API.
@@ -23,7 +24,17 @@ export class OllamaProvider extends AIProvider {
         const response = await this.makeRequest(prompt);
 
         const content = response.message?.content || response.response || '';
-        return ResponseParser.parseGroupingResponse(content, changes);
+        const parsed = ResponseParser.parseGroupingResponse(content, changes);
+        if (!parsed.parserMeta?.usedFallback || !content.trim()) {
+            return parsed;
+        }
+
+        Logger.warn('OllamaProvider: Initial parse used fallback, attempting repair pass');
+        const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
+        const repairResponse = await this.makeRequest(repairPrompt);
+        const repairContent = repairResponse.message?.content || repairResponse.response || '';
+        const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
+        return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
     async generateCommitMessage(files: FileChange[]): Promise<string> {
@@ -38,7 +49,11 @@ export class OllamaProvider extends AIProvider {
     async validateApiKey(): Promise<boolean> {
         try {
             Logger.info('OllamaProvider: Checking server availability');
-            await axios.get(`${this.baseUrl}/api/tags`, { timeout: 5000 });
+            await requestWithRetry(
+                'OllamaProvider.validateApiKey',
+                () => axios.get(`${this.baseUrl}/api/tags`, { timeout: 5000 }),
+                2
+            );
             return true;
         } catch (error) {
             Logger.error('OllamaProvider: Server not reachable', error);
@@ -64,46 +79,42 @@ export class OllamaProvider extends AIProvider {
 
             Logger.debug('OllamaProvider: Making API request', { model, promptLength: prompt.length });
 
-            const response = await axios.post(
-                `${this.baseUrl}/api/chat`,
-                {
-                    model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are an expert at analyzing code changes and organizing them into logical commits. Respond with valid JSON only.'
+            const response = await requestWithRetry(
+                'OllamaProvider.makeRequest',
+                () => axios.post(
+                    `${this.baseUrl}/api/chat`,
+                    {
+                        model,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are an expert at analyzing code changes and organizing them into logical commits. Respond with valid JSON only.'
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        stream: false,
+                        options: {
+                            temperature: this.config.temperature || 0.2,
+                            num_predict: this.config.maxTokens || 3000,
                         },
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    stream: false,
-                    options: {
-                        temperature: this.config.temperature || 0.3,
-                        num_predict: this.config.maxTokens || 2000,
+                        format: 'json',
                     },
-                    format: 'json',
-                },
-                {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 120000 // local models can be slow
-                }
+                    {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 120000 // local models can be slow
+                    }
+                ),
+                2
             );
 
             Logger.debug('OllamaProvider: API response received', { status: response.status });
             return response.data;
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                Logger.error('OllamaProvider: API request failed', {
-                    status: error.response?.status,
-                    data: error.response?.data,
-                });
-                throw new Error(
-                    `Ollama Error: ${error.response?.data?.error || error.message}`
-                );
-            }
-            throw error;
+            Logger.error('OllamaProvider: API request failed', error);
+            throw buildProviderError('Ollama Error', error);
         }
     }
 }

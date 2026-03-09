@@ -14,6 +14,10 @@ export interface AIResponse {
     summary?: string;
     reasoning?: string;
     tokensUsed?: number;
+    parserMeta?: {
+        usedFallback: boolean;
+        strategy: string;
+    };
 }
 
 export interface AIAnalyzeOptions {

@@ -4,6 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
+import { buildProviderError, requestWithRetry } from './providerUtils';
 
 export class GeminiProvider extends AIProvider {
     private readonly endpoint = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -16,27 +17,46 @@ export class GeminiProvider extends AIProvider {
     async analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse> {
         Logger.info('GeminiProvider: Analyzing changes', { fileCount: changes.length });
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
-        const response = await this.makeRequest(prompt);
+        const response = await this.makeRequest(prompt, 'json');
+        const content = this.extractTextContent(response);
 
-        const content = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        return ResponseParser.parseGroupingResponse(content, changes);
+        let parsed = ResponseParser.parseGroupingResponse(content, changes);
+        if (!parsed.parserMeta?.usedFallback || !content.trim()) {
+            return parsed;
+        }
+
+        Logger.warn('GeminiProvider: Initial parse used fallback, attempting repair pass');
+        const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
+        const repairResponse = await this.makeRequest(repairPrompt, 'json');
+        const repairedContent = this.extractTextContent(repairResponse);
+        const repaired = ResponseParser.parseGroupingResponse(repairedContent, changes);
+
+        if (!repaired.parserMeta?.usedFallback) {
+            return repaired;
+        }
+
+        parsed.reasoning = [
+            parsed.reasoning,
+            'AI repair pass could not produce strict structured JSON; kept fallback grouping.',
+        ].filter(Boolean).join(' ');
+        return parsed;
     }
 
     async generateCommitMessage(files: FileChange[]): Promise<string> {
         Logger.info('GeminiProvider: Generating commit message', { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
-        const response = await this.makeRequest(prompt);
-
-        const content = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const response = await this.makeRequest(prompt, 'text');
+        const content = this.extractTextContent(response);
         return ResponseParser.parseMessageResponse(content);
     }
 
     async validateApiKey(): Promise<boolean> {
         try {
             Logger.info('GeminiProvider: Validating API key');
-            await axios.get(
-                `${this.endpoint}?key=${this.config.apiKey}`,
-                { timeout: 5000 }
+            await requestWithRetry(
+                'GeminiProvider.validateApiKey',
+                () => axios.get(`${this.endpoint}?key=${this.config.apiKey}`, { timeout: 5000 }),
+                2
             );
             return true;
         } catch (error) {
@@ -45,50 +65,120 @@ export class GeminiProvider extends AIProvider {
         }
     }
 
-    protected async makeRequest(prompt: string): Promise<any> {
+    protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
         try {
-            const model = this.config.model || 'gemini-2.0-flash';
+            const model = this.config.model || 'gemini-2.5-flash';
             const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
 
-            Logger.debug('GeminiProvider: Making API request', { model, promptLength: prompt.length });
+            Logger.debug('GeminiProvider: Making API request', {
+                model,
+                mode,
+                promptLength: prompt.length,
+            });
 
-            const response = await axios.post(
-                url,
-                {
-                    contents: [
-                        {
-                            parts: [
-                                {
-                                    text: `You are an expert at analyzing code changes and organizing them into logical commits. Respond with valid JSON only.\n\n${prompt}`
-                                }
-                            ]
+            const response = await requestWithRetry(
+                'GeminiProvider.makeRequest',
+                () => axios.post(
+                    url,
+                    {
+                        contents: [
+                            {
+                                parts: [
+                                    {
+                                        text: `You are an expert at analyzing code changes and organizing them into logical commits.\n\n${prompt}`
+                                    }
+                                ]
+                            }
+                        ],
+                        generationConfig: {
+                            temperature: this.config.temperature || 0.2,
+                            maxOutputTokens: this.config.maxTokens || 4096,
+                            responseMimeType: mode === 'json' ? 'application/json' : 'text/plain',
+                            ...(mode === 'json' ? { responseSchema: this.getGroupingResponseSchema() } : {}),
                         }
-                    ],
-                    generationConfig: {
-                        temperature: this.config.temperature || 0.3,
-                        maxOutputTokens: this.config.maxTokens || 2000,
-                        responseMimeType: 'application/json',
+                    },
+                    {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 45000
                     }
-                },
-                {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 30000
-                }
+                ),
+                3
             );
 
             Logger.debug('GeminiProvider: API response received', { status: response.status });
             return response.data;
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                Logger.error('GeminiProvider: API request failed', {
-                    status: error.response?.status,
-                    data: error.response?.data,
-                });
-                throw new Error(
-                    `Gemini API Error: ${error.response?.data?.error?.message || error.message}`
-                );
-            }
-            throw error;
+            Logger.error('GeminiProvider: API request failed', error);
+            throw buildProviderError('Gemini API Error', error);
         }
+    }
+
+    private extractTextContent(response: any): string {
+        const candidates = response?.candidates;
+        if (!Array.isArray(candidates) || candidates.length === 0) {
+            const blockReason = response?.promptFeedback?.blockReason;
+            if (blockReason) {
+                throw new Error(`Gemini response blocked: ${blockReason}`);
+            }
+            throw new Error('Gemini response did not include any candidates');
+        }
+
+        const candidate = candidates[0];
+        const parts = candidate?.content?.parts;
+        const text = Array.isArray(parts)
+            ? parts
+                .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+                .join('\n')
+                .trim()
+            : '';
+
+        if (text) {
+            return text;
+        }
+
+        if (candidate?.finishReason) {
+            throw new Error(`Gemini response had no text content (finish reason: ${candidate.finishReason})`);
+        }
+
+        throw new Error('Gemini response had no text content');
+    }
+
+    private getGroupingResponseSchema(): Record<string, unknown> {
+        return {
+            type: 'object',
+            required: ['groups'],
+            properties: {
+                summary: { type: 'string' },
+                reasoning: { type: 'string' },
+                groups: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        required: ['files', 'type', 'subject', 'confidence'],
+                        properties: {
+                            files: {
+                                type: 'array',
+                                items: { type: 'string' },
+                            },
+                            type: { type: 'string' },
+                            scope: { type: 'string' },
+                            subject: { type: 'string' },
+                            body: { type: 'string' },
+                            confidence: { type: 'number' },
+                            rationale: { type: 'string' },
+                            impact: { type: 'string' },
+                            verification: {
+                                type: 'array',
+                                items: { type: 'string' },
+                            },
+                            risks: {
+                                type: 'array',
+                                items: { type: 'string' },
+                            },
+                        },
+                    },
+                },
+            },
+        };
     }
 }

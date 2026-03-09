@@ -4,6 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
+import { buildProviderError, requestWithRetry } from './providerUtils';
 
 export class GoogleProvider extends AIProvider {
     private readonly endpoint = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -19,11 +20,18 @@ export class GoogleProvider extends AIProvider {
         Logger.debug('GoogleProvider: Built prompt', { promptLength: prompt.length });
 
         const response = await this.makeRequest(prompt);
+        const content = response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parsed = ResponseParser.parseGroupingResponse(content, changes);
+        if (!parsed.parserMeta?.usedFallback || !content.trim()) {
+            return parsed;
+        }
 
-        return ResponseParser.parseGroupingResponse(
-            response.candidates[0].content.parts[0].text,
-            changes
-        );
+        Logger.warn('GoogleProvider: Initial parse used fallback, attempting repair pass');
+        const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
+        const repairResponse = await this.makeRequest(repairPrompt);
+        const repairContent = repairResponse?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
+        return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
     async generateCommitMessage(files: FileChange[]): Promise<string> {
@@ -73,15 +81,19 @@ export class GoogleProvider extends AIProvider {
 
             Logger.debug('GoogleProvider: Request body', requestBody);
 
-            const response = await axios.post(
-                url,
-                requestBody,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 30000
-                }
+            const response = await requestWithRetry(
+                'GoogleProvider.makeRequest',
+                () => axios.post(
+                    url,
+                    requestBody,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 45000
+                    }
+                ),
+                3
             );
 
             Logger.debug('GoogleProvider: API response received', {
@@ -91,19 +103,8 @@ export class GoogleProvider extends AIProvider {
 
             return response.data;
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                Logger.error('GoogleProvider: API request failed', {
-                    status: error.response?.status,
-                    statusText: error.response?.statusText,
-                    data: error.response?.data,
-                    message: error.message
-                });
-                throw new Error(
-                    `Google API Error: ${error.response?.data?.error?.message || error.message}`
-                );
-            }
             Logger.error('GoogleProvider: Unexpected error', error);
-            throw error;
+            throw buildProviderError('Google API Error', error);
         }
     }
 }

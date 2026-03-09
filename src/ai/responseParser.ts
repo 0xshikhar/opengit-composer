@@ -46,11 +46,20 @@ export class ResponseParser {
             Logger.info('ResponseParser: Parsed AI response using structured JSON', {
                 groups: composed.groups.length,
             });
+            composed.parserMeta = {
+                usedFallback: false,
+                strategy: 'structured-json',
+            };
             return composed;
         }
 
         Logger.warn('ResponseParser: Falling back to heuristic grouping due to unparseable response');
-        return this.fallbackHeuristicGrouping(allChanges);
+        const fallback = this.fallbackHeuristicGrouping(allChanges);
+        fallback.parserMeta = {
+            usedFallback: true,
+            strategy: 'heuristic-fallback',
+        };
+        return fallback;
     }
 
     static parseMessageResponse(response: string): string {
@@ -66,7 +75,10 @@ export class ResponseParser {
 
         for (const candidate of candidates) {
             try {
-                const parsed = JSON.parse(candidate) as Record<string, unknown>;
+                const rawParsed = JSON.parse(candidate) as unknown;
+                const parsed = this.normalizePayloadRoot(rawParsed);
+                if (!parsed) continue;
+
                 const groupsSource = this.pickGroupSource(parsed);
                 if (!Array.isArray(groupsSource) || groupsSource.length === 0) continue;
 
@@ -193,27 +205,41 @@ export class ResponseParser {
         const files = this.normalizeFiles(source.files ?? source.paths ?? source.filePaths ?? source.file);
         if (files.length === 0) return null;
 
+        const rawCommitMessage =
+            this.getString(source.commit_message) ||
+            this.getString(source.commitMessage) ||
+            this.getString(source.message);
+        const parsedCommitMessage = rawCommitMessage
+            ? this.parseCommitMessage(rawCommitMessage)
+            : null;
+
         const type = this.normalizeType(
             this.getString(source.type) ||
             this.getString(source.commitType) ||
             this.getString(source.kind) ||
+            parsedCommitMessage?.type ||
             'chore'
         );
 
         const scope = this.normalizeScope(
             this.getString(source.scope) ||
             this.getString(source.module) ||
-            this.getString(source.area)
+            this.getString(source.area) ||
+            parsedCommitMessage?.scope
         );
 
         const subject = this.normalizeSubject(
             this.getString(source.subject) ||
             this.getString(source.title) ||
-            this.getString(source.message) ||
+            parsedCommitMessage?.subject ||
+            rawCommitMessage ||
             'update staged changes'
         );
 
-        const body = this.getString(source.body) || this.getString(source.description);
+        const body =
+            this.getString(source.body) ||
+            this.getString(source.description) ||
+            parsedCommitMessage?.body;
         const confidence = this.normalizeConfidence(source.confidence ?? source.score);
         const rationale = this.getString(source.rationale) || this.getString(source.why);
         const impact = this.getString(source.impact);
@@ -281,9 +307,14 @@ export class ResponseParser {
     private static pickGroupSource(parsed: Record<string, unknown>): unknown[] | null {
         const candidates: unknown[] = [
             parsed.groups,
+            parsed.groupings,
+            parsed.drafts,
             parsed.commits,
             parsed.commitGroups,
+            parsed.commit_groups,
             parsed.items,
+            (parsed.result as Record<string, unknown> | undefined)?.groups,
+            (parsed.output as Record<string, unknown> | undefined)?.groups,
             (parsed.data as Record<string, unknown> | undefined)?.groups,
         ];
 
@@ -296,8 +327,10 @@ export class ResponseParser {
     private static buildJsonCandidates(input: string): string[] {
         const trimmed = input.trim();
         const candidates = new Set<string>();
-        candidates.add(trimmed);
-        candidates.add(this.repairJson(trimmed));
+        if (trimmed) {
+            candidates.add(trimmed);
+            candidates.add(this.repairJson(trimmed));
+        }
 
         const firstBrace = trimmed.indexOf('{');
         const lastBrace = trimmed.lastIndexOf('}');
@@ -305,6 +338,14 @@ export class ResponseParser {
             const sliced = trimmed.slice(firstBrace, lastBrace + 1);
             candidates.add(sliced);
             candidates.add(this.repairJson(sliced));
+        }
+
+        const firstBracket = trimmed.indexOf('[');
+        const lastBracket = trimmed.lastIndexOf(']');
+        if (firstBracket >= 0 && lastBracket > firstBracket) {
+            const arraySlice = trimmed.slice(firstBracket, lastBracket + 1);
+            candidates.add(arraySlice);
+            candidates.add(this.repairJson(arraySlice));
         }
 
         return [...candidates];
@@ -319,9 +360,25 @@ export class ResponseParser {
 
     private static repairJson(value: string): string {
         return value
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '')
             .replace(/[“”]/g, '"')
             .replace(/[‘’]/g, "'")
+            // Quote unquoted object keys: { foo: "bar" } -> { "foo": "bar" }
+            .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_-]*)(\s*:)/g, '$1"$2"$3')
+            // Normalize string values with single quotes: { "foo": 'bar' } -> { "foo": "bar" }
+            .replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, ': "$1"')
+            // Normalize arrays with single-quoted items: [ 'a', 'b' ] -> [ "a", "b" ]
+            .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"')
             .replace(/,\s*([}\]])/g, '$1');
+    }
+
+    private static normalizePayloadRoot(raw: unknown): Record<string, unknown> | null {
+        if (Array.isArray(raw)) {
+            return { groups: raw };
+        }
+        if (!raw || typeof raw !== 'object') return null;
+        return raw as Record<string, unknown>;
     }
 
     private static normalizeFiles(raw: unknown): string[] {
@@ -385,5 +442,30 @@ export class ResponseParser {
         const subject = group.subject || 'update staged changes';
         const body = group.body?.trim();
         return body ? `${group.type}${scope}: ${subject}\n\n${body}` : `${group.type}${scope}: ${subject}`;
+    }
+
+    private static parseCommitMessage(message: string): { type?: string; scope?: string; subject: string; body?: string } | null {
+        const normalized = message.trim();
+        if (!normalized) return null;
+
+        const [subjectLineRaw, ...rest] = normalized.split('\n');
+        const subjectLine = subjectLineRaw.trim();
+        const body = rest.join('\n').trim() || undefined;
+
+        const conventional = subjectLine.match(/^([a-zA-Z]+)(?:\(([^)]+)\))?!?:\s*(.+)$/);
+        if (conventional) {
+            const [, type, scope, subject] = conventional;
+            return {
+                type: type?.toLowerCase(),
+                scope,
+                subject,
+                body,
+            };
+        }
+
+        return {
+            subject: subjectLine,
+            body,
+        };
     }
 }

@@ -4,6 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
+import { buildProviderError, requestWithRetry } from './providerUtils';
 
 export class OpenAIProvider extends AIProvider {
     private readonly endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -37,7 +38,17 @@ export class OpenAIProvider extends AIProvider {
         Logger.aiResponse(this.providerName, 200, content.length, responseTime);
         Logger.aiRawResponse(content);
         
-        return ResponseParser.parseGroupingResponse(content, changes);
+        const parsed = ResponseParser.parseGroupingResponse(content, changes);
+        if (!parsed.parserMeta?.usedFallback || !content.trim()) {
+            return parsed;
+        }
+
+        Logger.warn('OpenAIProvider: Initial parse used fallback, attempting repair pass');
+        const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
+        const repairResponse = await this.makeRequest(repairPrompt);
+        const repairContent = repairResponse.choices?.[0]?.message?.content || '';
+        const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
+        return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
     async generateCommitMessage(files: FileChange[]): Promise<string> {
@@ -55,12 +66,16 @@ export class OpenAIProvider extends AIProvider {
     async validateApiKey(): Promise<boolean> {
         try {
             Logger.info(`[${this.providerName}] Validating API key`);
-            await axios.get('https://api.openai.com/v1/models', {
-                headers: {
-                    'Authorization': `Bearer ${this.config.apiKey}`
-                },
-                timeout: 5000
-            });
+            await requestWithRetry(
+                'OpenAIProvider.validateApiKey',
+                () => axios.get('https://api.openai.com/v1/models', {
+                    headers: {
+                        'Authorization': `Bearer ${this.config.apiKey}`
+                    },
+                    timeout: 5000
+                }),
+                2
+            );
             Logger.info(`[${this.providerName}] API key validation successful`);
             return true;
         } catch (error) {
@@ -92,32 +107,26 @@ export class OpenAIProvider extends AIProvider {
 
             Logger.debug('Request body', { model });
 
-            const response = await axios.post(
-                this.endpoint,
-                requestBody,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.config.apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 60000
-                }
+            const response = await requestWithRetry(
+                'OpenAIProvider.makeRequest',
+                () => axios.post(
+                    this.endpoint,
+                    requestBody,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${this.config.apiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 60000
+                    }
+                ),
+                3
             );
 
             return response.data;
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                const errMsg = `OpenAI API Error: ${error.response?.data?.error?.message || error.message}`;
-                Logger.error(`[${this.providerName}] Request failed`, {
-                    status: error.response?.status,
-                    statusText: error.response?.statusText,
-                    data: error.response?.data,
-                    message: error.message
-                });
-                throw new Error(errMsg);
-            }
             Logger.error(`[${this.providerName}] Unexpected error`, error);
-            throw error;
+            throw buildProviderError('OpenAI API Error', error);
         }
     }
 }

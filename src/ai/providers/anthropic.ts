@@ -3,18 +3,28 @@ import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../a
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
+import { Logger } from '../../utils/logger';
+import { buildProviderError, requestWithRetry } from './providerUtils';
 
 export class AnthropicProvider extends AIProvider {
     private readonly endpoint = 'https://api.anthropic.com/v1/messages';
 
     async analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse> {
+        Logger.info('AnthropicProvider: Analyzing changes', { fileCount: changes.length });
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         const response = await this.makeRequest(prompt);
+        const content = response.content?.[0]?.text || '';
+        const parsed = ResponseParser.parseGroupingResponse(content, changes);
+        if (!parsed.parserMeta?.usedFallback || !content.trim()) {
+            return parsed;
+        }
 
-        return ResponseParser.parseGroupingResponse(
-            response.content[0].text,
-            changes
-        );
+        Logger.warn('AnthropicProvider: Initial parse used fallback, attempting repair pass');
+        const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
+        const repairResponse = await this.makeRequest(repairPrompt);
+        const repairContent = repairResponse.content?.[0]?.text || '';
+        const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
+        return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
     async generateCommitMessage(files: FileChange[]): Promise<string> {
@@ -39,37 +49,36 @@ export class AnthropicProvider extends AIProvider {
 
     protected async makeRequest(prompt: string): Promise<any> {
         try {
-            const response = await axios.post(
-                this.endpoint,
-                {
-                    model: this.config.model || 'claude-3-sonnet-20240229',
-                    max_tokens: this.config.maxTokens || 2000,
-                    messages: [
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    temperature: this.config.temperature || 0.3
-                },
-                {
-                    headers: {
-                        'x-api-key': this.config.apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'Content-Type': 'application/json'
+            const response = await requestWithRetry(
+                'AnthropicProvider.makeRequest',
+                () => axios.post(
+                    this.endpoint,
+                    {
+                        model: this.config.model || 'claude-sonnet-4-20250514',
+                        max_tokens: this.config.maxTokens || 3000,
+                        messages: [
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        temperature: this.config.temperature || 0.2
                     },
-                    timeout: 30000
-                }
+                    {
+                        headers: {
+                            'x-api-key': this.config.apiKey,
+                            'anthropic-version': '2023-06-01',
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 45000
+                    }
+                ),
+                3
             );
 
             return response.data;
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                throw new Error(
-                    `Anthropic API Error: ${error.response?.data?.error?.message || error.message}`
-                );
-            }
-            throw error;
+            throw buildProviderError('Anthropic API Error', error);
         }
     }
 }

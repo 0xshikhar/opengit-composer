@@ -16,3 +16,4 @@ webpack.config.js
 .DS_Store
 inspiration.png
 sidebar-image.png
+!icon.png

@@ -1,21 +1,54 @@
 {
-  "name": "vscode-commit-composer",
-  "displayName": "Git Commit Composer",
-  "description": "Professional AI-Powered OpenGit Composer. Intelligently group your staged changes into semantic commits.",
+  "name": "opengit-composer",
+  "displayName": "OpenGit Composer",
+  "description": "AI-Powered Git Commit Composer. Intelligently group staged changes into semantic commits using AI. Supports multiple AI providers (OpenAI, Anthropic, Gemini, Ollama) and commit conventions.",
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
   "version": "2.0.0",
+  "license": "MIT",
+  "icon": "icon.png",
+  "homepage": "https://github.com/0xshikhar/git-composer",
   "repository": {
     "type": "git",
     "url": "https://github.com/0xshikhar/git-composer.git"
   },
+  "bugs": {
+    "url": "https://github.com/0xshikhar/git-composer/issues"
+  },
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "ollama",
+    "conventional-commits",
+    "gitmoji",
+    "automation",
+    "productivity",
+    "developer-tools"
+  ],
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
+  "badges": [
+    {
+      "url": "https://img.shields.io/github/stars/0xshikhar/git-composer?style=social",
+      "href": "https://github.com/0xshikhar/git-composer",
+      "description": "GitHub Stars"
+    }
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": [
-    "Other"
-  ],
   "activationEvents": [
     "onView:commitComposer.sidebarView",
     "onCommand:commitComposer.autoCompose"
@@ -27,7 +60,7 @@
         {
           "id": "commitComposerContainer",
           "title": "OpenGit Composer",
-          "icon": "media/icon.svg"
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -44,6 +77,10 @@
       {
         "command": "commitComposer.autoCompose",
         "title": "Commit Composer: Auto Compose"
+      },
+      {
+        "command": "commitComposer.showDebug",
+        "title": "Commit Composer: Show Debug Logs"
       }
     ],
     "configuration": {
@@ -96,6 +133,11 @@
           "type": "number",
           "default": 3,
           "description": "Number of files above which the splitter groups into multiple commits"
+        },
+        "commitComposer.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug mode for detailed AI logging in Output panel"
         }
       }
     }

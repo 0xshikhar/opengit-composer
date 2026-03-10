@@ -8,6 +8,7 @@ import { FileChange, RepoContext } from '../types/git';
 import { ConfigLoader, ComposerConfig } from './configLoader';
 import { Logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { applyPrivacyPolicyToChanges } from './privacyPolicy';
 
 export interface ComposeProviderConfig {
     provider: string;
@@ -15,6 +16,28 @@ export interface ComposeProviderConfig {
     model?: string;
     baseUrl?: string;
     additionalInstructions?: string;
+}
+
+export interface ComposeSnapshot {
+    fingerprint: string;
+    generatedAt: number;
+    fileCount: number;
+    paths: string[];
+}
+
+export interface ComposeMeta {
+    usedFallback: boolean;
+    fallbackReason?: string;
+    excludedFileCount: number;
+    redactedMatchCount: number;
+}
+
+export interface ComposeResult {
+    drafts: DraftCommit[];
+    reasoning?: string;
+    summary?: string;
+    snapshot: ComposeSnapshot;
+    meta: ComposeMeta;
 }
 
 /**
@@ -38,7 +61,7 @@ export class Orchestrator {
     /**
      * Full pipeline: staged changes → draft commits via AI.
      */
-    async compose(providerConfig?: ComposeProviderConfig): Promise<{ drafts: DraftCommit[]; reasoning?: string; summary?: string }> {
+    async compose(providerConfig?: ComposeProviderConfig): Promise<ComposeResult> {
 
         // 1. Get staged changes
         const stagedChanges = await this.gitService.getStagedChanges();
@@ -53,16 +76,51 @@ export class Orchestrator {
 
         // 3. Load config
         const config = this.configLoader.getConfig();
+        const privacyResult = applyPrivacyPolicyToChanges(stagedChanges, {
+            excludePatterns: config.excludePatterns,
+            redactPatterns: config.redactPatterns,
+        });
+        const eligibleChanges = privacyResult.changes;
+
+        if (eligibleChanges.length === 0) {
+            const err = new Error(
+                'No staged files eligible for composition after applying exclude patterns.'
+            ) as Error & { code?: string };
+            err.code = 'ONLY_EXCLUDED_FILES';
+            throw err;
+        }
 
         // 4. If we have an AI provider request, use it for intelligent grouping.
         //    Settings are used as fallback for unset fields.
+        let composeResult: {
+            drafts: DraftCommit[];
+            reasoning?: string;
+            summary?: string;
+            meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason'>;
+        };
         if (providerConfig) {
             const resolvedProviderConfig = this.resolveProviderConfig(providerConfig, config);
-            return this.composeWithAI(stagedChanges, context, resolvedProviderConfig, config);
+            composeResult = await this.composeWithAI(eligibleChanges, context, resolvedProviderConfig, config);
+        } else {
+            // 5. Fallback: use heuristic splitter only
+            composeResult = await this.composeWithHeuristics(eligibleChanges, context, config);
         }
 
-        // 5. Fallback: use heuristic splitter only
-        return this.composeWithHeuristics(stagedChanges, context, config);
+        const snapshot = this.buildComposeSnapshot(eligibleChanges);
+        const meta: ComposeMeta = {
+            usedFallback: composeResult.meta?.usedFallback ?? false,
+            fallbackReason: composeResult.meta?.fallbackReason,
+            excludedFileCount: privacyResult.excludedPaths.length,
+            redactedMatchCount: privacyResult.redactedMatches,
+        };
+
+        return {
+            drafts: composeResult.drafts,
+            reasoning: composeResult.reasoning,
+            summary: composeResult.summary,
+            snapshot,
+            meta,
+        };
     }
 
     private resolveProviderConfig(
@@ -115,7 +173,12 @@ export class Orchestrator {
             additionalInstructions?: string;
         },
         config: ComposerConfig
-    ): Promise<{ drafts: DraftCommit[]; reasoning?: string; summary?: string }> {
+    ): Promise<{
+        drafts: DraftCommit[];
+        reasoning?: string;
+        summary?: string;
+        meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason'>;
+    }> {
         const aiConfig: AIProviderConfig = {
             apiKey: providerConfig.apiKey,
             model: providerConfig.model,
@@ -164,11 +227,24 @@ export class Orchestrator {
                 drafts,
                 reasoning: result.reasoning,
                 summary: result.summary,
+                meta: {
+                    usedFallback: result.parserMeta?.usedFallback ?? false,
+                    fallbackReason: result.parserMeta?.usedFallback
+                        ? `parser:${result.parserMeta.strategy}`
+                        : undefined,
+                },
             };
         } catch (error) {
             Logger.error('Orchestrator: AI composition failed, falling back to heuristics', error);
             // Fall back to heuristic grouping instead of throwing
-            return this.composeWithHeuristics(changes, context, config);
+            const heuristicResult = await this.composeWithHeuristics(changes, context, config);
+            return {
+                ...heuristicResult,
+                meta: {
+                    usedFallback: true,
+                    fallbackReason: 'ai_request_failed',
+                },
+            };
         }
     }
 
@@ -177,15 +253,18 @@ export class Orchestrator {
      */
     private composeWithHeuristics(
         changes: FileChange[],
-        context: RepoContext,
+        _context: RepoContext,
         config: ComposerConfig
     ): Promise<{ drafts: DraftCommit[]; reasoning?: string; summary?: string }> {
         const clusters = this.commitSplitter.split(changes);
 
         const drafts: DraftCommit[] = clusters.map(cluster => {
-            const scope = cluster.suggestedScope ? `(${cluster.suggestedScope})` : '';
-            const fileNames = cluster.files.map(f => f.path.split('/').pop()).join(', ');
-            const message = `${cluster.suggestedType}${scope}: update ${fileNames}`;
+            const message = this.buildHeuristicCommitMessage(
+                cluster.suggestedType,
+                cluster.suggestedScope,
+                cluster.files.map(file => file.path),
+                config.maxSubjectLength
+            );
 
             return {
                 id: uuidv4(),
@@ -204,6 +283,48 @@ export class Orchestrator {
             reasoning: 'Generated using heuristic file clustering (no AI).',
             summary: `Prepared ${drafts.length} heuristic draft commit${drafts.length === 1 ? '' : 's'}.`,
         });
+    }
+
+    private buildHeuristicCommitMessage(
+        type: string,
+        scope: string | undefined,
+        filePaths: string[],
+        maxSubjectLength: number
+    ): string {
+        const scopedType = scope ? `${type}(${scope})` : type;
+        const shortFileNames = filePaths
+            .map(path => path.split('/').pop() || path)
+            .slice(0, 3)
+            .join(', ');
+        const overflowCount = Math.max(0, filePaths.length - 3);
+        const suffix = overflowCount > 0 ? ` +${overflowCount} more` : '';
+        let subject = `${scopedType}: update ${shortFileNames}${suffix}`;
+
+        if (subject.length <= maxSubjectLength) {
+            return subject;
+        }
+
+        subject = `${scopedType}: update related files`;
+        if (subject.length > maxSubjectLength) {
+            subject = subject.slice(0, Math.max(0, maxSubjectLength - 3)).trimEnd() + '...';
+        }
+
+        const body = ['Files:', ...filePaths.map(filePath => `- ${filePath}`)].join('\n');
+        return `${subject}\n\n${body}`;
+    }
+
+    private buildComposeSnapshot(changes: FileChange[]): ComposeSnapshot {
+        const sorted = [...changes].sort((left, right) => left.path.localeCompare(right.path));
+        const fingerprint = sorted
+            .map(change => `${change.path}|${change.changeType}|${change.additions}|${change.deletions}`)
+            .join('\n');
+
+        return {
+            fingerprint,
+            generatedAt: Date.now(),
+            fileCount: sorted.length,
+            paths: sorted.map(change => change.path),
+        };
     }
 
     /**

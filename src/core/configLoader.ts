@@ -14,6 +14,8 @@ export interface ComposerConfig {
     includeRecentCommits: boolean;
     recentCommitCount: number;
     ollamaHost: string;
+    excludePatterns: string[];
+    redactPatterns: string[];
 }
 
 const DEFAULT_CONFIG: ComposerConfig = {
@@ -27,6 +29,8 @@ const DEFAULT_CONFIG: ComposerConfig = {
     includeRecentCommits: true,
     recentCommitCount: 10,
     ollamaHost: 'http://localhost:11434',
+    excludePatterns: [],
+    redactPatterns: [],
 };
 
 /**
@@ -120,6 +124,26 @@ export class ConfigLoader {
 
             const commitFormat = vsConfig.get('commitFormat') as string | undefined;
             if (commitFormat) this.config.commitFormat = commitFormat as ComposerConfig['commitFormat'];
+
+            const maxSubjectLength = vsConfig.get('maxSubjectLength') as number | undefined;
+            if (typeof maxSubjectLength === 'number' && Number.isFinite(maxSubjectLength)) {
+                this.config.maxSubjectLength = maxSubjectLength;
+            }
+
+            const splitThreshold = vsConfig.get('splitThreshold') as number | undefined;
+            if (typeof splitThreshold === 'number' && Number.isFinite(splitThreshold)) {
+                this.config.splitThreshold = splitThreshold;
+            }
+
+            const excludePatterns = vsConfig.get('excludePatterns') as string[] | undefined;
+            if (Array.isArray(excludePatterns)) {
+                this.config.excludePatterns = excludePatterns.filter(pattern => typeof pattern === 'string');
+            }
+
+            const redactPatterns = vsConfig.get('redactPatterns') as string[] | undefined;
+            if (Array.isArray(redactPatterns)) {
+                this.config.redactPatterns = redactPatterns.filter(pattern => typeof pattern === 'string');
+            }
         } catch {
             // Not in VS Code context (e.g. unit tests) — use defaults
         }
@@ -145,6 +169,8 @@ export class ConfigLoader {
             if (fileConfig.includeRecentCommits !== undefined) this.config.includeRecentCommits = fileConfig.includeRecentCommits;
             if (fileConfig.recentCommitCount) this.config.recentCommitCount = fileConfig.recentCommitCount;
             if (fileConfig.ollamaHost) this.config.ollamaHost = fileConfig.ollamaHost;
+            if (Array.isArray(fileConfig.excludePatterns)) this.config.excludePatterns = fileConfig.excludePatterns;
+            if (Array.isArray(fileConfig.redactPatterns)) this.config.redactPatterns = fileConfig.redactPatterns;
 
             Logger.info('ConfigLoader: Loaded .gitcomposer.json', { configPath });
         } catch (e) {

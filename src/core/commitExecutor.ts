@@ -13,8 +13,8 @@ export interface CommitProgress {
 export type ProgressCallback = (progress: CommitProgress) => void;
 
 /**
- * Executes commits atomically — stages only the files for each commit,
- * commits, then moves to the next.
+ * Executes commits atomically — commits only the staged changes for the
+ * files assigned to each draft, leaving any other staged changes intact.
  */
 export class CommitExecutor {
     private gitService: GitService;
@@ -56,9 +56,9 @@ export class CommitExecutor {
                     files: draft.files.map(f => f.path),
                 });
 
-                // Unstage all, then stage only this group
-                await this.gitService.unstageAll();
-                await this.gitService.stageFiles(draft.files.map(f => f.path));
+                // Commit only the staged changes for this draft's files.
+                // This preserves any other staged changes, enabling true "atomic" commit sequences
+                // without destroying partial staging.
                 await this.gitService.createCommit(draft.message, draft.files.map(f => f.path));
 
                 progress.success = true;

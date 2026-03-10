@@ -88,8 +88,17 @@ export class GitService {
 
     // --- Commit ---
 
-    async createCommit(message: string, files: string[]): Promise<void> {
-        await this.git.commit(message, files);
+    async createCommit(message: string, files?: string[]): Promise<void> {
+        const normalizedFiles = (files || []).filter(Boolean);
+        if (normalizedFiles.length === 0) {
+            await this.git.commit(message);
+            return;
+        }
+
+        // Use raw to ensure correct `--` pathspec handling and avoid surprising behaviors.
+        // This commits only the currently-staged changes for the provided paths, leaving other
+        // staged changes intact (critical for composing multiple atomic commits).
+        await this.git.raw(['commit', '-m', message, '--', ...normalizedFiles]);
     }
 
     // --- Repository context ---

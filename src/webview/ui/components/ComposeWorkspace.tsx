@@ -85,6 +85,16 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
                 <div>
                     <h3 className="compose-title">Generated Commits</h3>
                     {summary && <p className="compose-summary">{summary}</p>}
+                    {composeMeta?.usedFallback && (
+                        <p className="compose-summary compose-summary-warning">
+                            Fallback mode active ({composeMeta.fallbackReason || 'AI fallback'}).
+                        </p>
+                    )}
+                    {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (
+                        <p className="compose-summary">
+                            Privacy policy: excluded {composeMeta?.excludedFileCount || 0} file(s), redacted {composeMeta?.redactedMatchCount || 0} match(es).
+                        </p>
+                    ) : null}
                 </div>
                 <div className="compose-header-actions">
                     {!isPanelMode && (

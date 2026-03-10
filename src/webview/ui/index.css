@@ -610,13 +610,28 @@ body {
 .status-committed,
 .status-confidence,
 .status-reasoning,
-.status-summary {
+.status-summary,
+.status-privacy {
   color: var(--vscode-descriptionForeground, #9a9a9a);
   font-size: var(--gc-font-sm);
 }
 
 .error-text {
   color: #f85149;
+}
+
+.status-inline-action {
+  margin-left: auto;
+}
+
+.status-fallback-badge {
+  border: 1px solid #f0883e66;
+  color: #f0883e;
+  background: #f0883e1a;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
 }
 
 .progress-bar {
@@ -657,6 +672,10 @@ body {
   font-size: var(--gc-font-md);
   color: var(--vscode-descriptionForeground, #9a9a9a);
   max-width: 980px;
+}
+
+.compose-summary-warning {
+  color: #f0883e;
 }
 
 .compose-header-actions {

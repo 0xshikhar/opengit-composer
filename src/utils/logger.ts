@@ -187,6 +187,23 @@ export class Logger {
             return String(data);
         }
     }
+
+    private static sanitizeLogLine(line: string): string {
+        let output = line;
+
+        output = output.replace(/sk-[a-zA-Z0-9_-]{16,}/g, '[REDACTED_KEY]');
+        output = output.replace(/(api[_-]?key["']?\s*[:=]\s*["']?)[^"'\s]+/gi, '$1[REDACTED]');
+        output = output.replace(/(authorization["']?\s*[:=]\s*["']?bearer\s+)[^"'\s]+/gi, '$1[REDACTED]');
+
+        if (/^\s*[\+\-](?![\+\-])/.test(output) || /^\s*@@/.test(output) || /^\s*diff --git/.test(output)) {
+            return '[DIFF_CONTENT_REDACTED]';
+        }
+
+        if (output.length > 500) {
+            return `${output.slice(0, 500)}...[truncated]`;
+        }
+        return output;
+    }
 }
 
 function ts() {

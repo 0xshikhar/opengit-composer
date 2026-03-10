@@ -40,12 +40,33 @@ export interface StoredKeyDisplay {
     lastUsed?: number;
 }
 
+export interface ComposeSnapshot {
+    fingerprint: string;
+    generatedAt: number;
+    fileCount: number;
+    paths: string[];
+}
+
+export interface ComposeMeta {
+    usedFallback: boolean;
+    fallbackReason?: string;
+    excludedFileCount: number;
+    redactedMatchCount: number;
+}
+
+export interface ErrorAction {
+    label: string;
+    command: 'refresh' | 'compose' | 'copySanitizedLogs';
+}
+
 interface CommitStoreState {
     // Data
     stagedFiles: FileChange[];
     drafts: DraftCommit[];
     summary: string | null;
     reasoning: string | null;
+    composeSnapshot: ComposeSnapshot | null;
+    composeMeta: ComposeMeta | null;
 
     // UI state
     selectedDraftId: string | null;
@@ -53,6 +74,7 @@ interface CommitStoreState {
     isLoading: boolean;
     isCommitting: boolean;
     error: string | null;
+    errorAction: ErrorAction | null;
     commitProgress: { current: number; total: number } | null;
 
     // Provider config
@@ -70,12 +92,18 @@ interface CommitStoreState {
 
     // Actions
     setStagedFiles: (files: FileChange[]) => void;
-    setDrafts: (drafts: DraftCommit[], reasoning?: string | null, summary?: string | null) => void;
+    setDrafts: (
+        drafts: DraftCommit[],
+        reasoning?: string | null,
+        summary?: string | null,
+        snapshot?: ComposeSnapshot | null,
+        meta?: ComposeMeta | null
+    ) => void;
     selectDraft: (id: string | null) => void;
     selectFile: (path: string | null) => void;
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
-    setError: (error: string | null) => void;
+    setError: (error: string | null, action?: ErrorAction | null) => void;
     setCommitProgress: (progress: { current: number; total: number } | null) => void;
     setProviderConfig: (config: Partial<ProviderConfig>) => void;
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
@@ -104,11 +132,14 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     drafts: [],
     summary: null,
     reasoning: null,
+    composeSnapshot: null,
+    composeMeta: null,
     selectedDraftId: null,
     selectedFilePath: null,
     isLoading: false,
     isCommitting: false,
     error: null,
+    errorAction: null,
     commitProgress: null,
     providerConfig: {
         provider: 'openai',
@@ -122,12 +153,21 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
 
     // Setters
     setStagedFiles: (files) => set({ stagedFiles: files }),
-    setDrafts: (drafts, reasoning = null, summary = null) => set({ drafts, reasoning, summary, error: null }),
+    setDrafts: (drafts, reasoning = null, summary = null, snapshot = null, meta = null) =>
+        set({
+            drafts,
+            reasoning,
+            summary,
+            composeSnapshot: snapshot,
+            composeMeta: meta,
+            error: null,
+            errorAction: null,
+        }),
     selectDraft: (id) => set({ selectedDraftId: id }),
     selectFile: (path) => set({ selectedFilePath: path, activeView: 'diff' }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
-    setError: (error) => set({ error }),
+    setError: (error, action = null) => set({ error, errorAction: action }),
     setCommitProgress: (progress) => set({ commitProgress: progress }),
     setProviderConfig: (config) =>
         set((state) => ({
@@ -225,11 +265,14 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             drafts: [],
             summary: null,
             reasoning: null,
+            composeSnapshot: null,
+            composeMeta: null,
             selectedDraftId: null,
             selectedFilePath: null,
             isLoading: false,
             isCommitting: false,
             error: null,
+            errorAction: null,
             commitProgress: null,
             activeView: 'tree',
             ollamaModels: [],

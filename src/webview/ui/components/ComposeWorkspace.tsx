@@ -11,6 +11,8 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
         drafts,
         summary,
         reasoning,
+        composeSnapshot,
+        composeMeta,
         selectedDraftId,
         selectDraft,
         updateDraftMessage,

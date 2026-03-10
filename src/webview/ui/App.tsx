@@ -33,6 +33,7 @@ export default function App() {
         isCommitting,
         providerConfig,
         activeView,
+        composeSnapshot,
         setStagedFiles,
         setDrafts,
         setLoading,
@@ -83,7 +84,13 @@ export default function App() {
                     break;
 
                 case 'composed':
-                    setDrafts(message.drafts || [], message.reasoning, message.summary || null);
+                    setDrafts(
+                        message.drafts || [],
+                        message.reasoning,
+                        message.summary || null,
+                        message.snapshot || null,
+                        message.meta || null
+                    );
                     setLoading(false);
                     setActiveView('compose');
                     if ((message.drafts || []).length > 0) {
@@ -112,7 +119,7 @@ export default function App() {
                     break;
 
                 case 'error':
-                    setError(message.message);
+                    setError(message.message, message.action || null);
                     setLoading(false);
                     setCommitting(false);
                     break;

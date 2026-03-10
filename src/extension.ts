@@ -17,8 +17,9 @@ export function activate(context: vscode.ExtensionContext) {
     const autoComposeCommand = vscode.commands.registerCommand(
         'commitComposer.autoCompose',
         async () => {
-            await vscode.commands.executeCommand('workbench.view.extension.commitComposerContainer');
-            await vscode.commands.executeCommand('commitComposer.sidebarView.focus');
+            // Open the dedicated panel and trigger composition immediately.
+            // This provides a consistent UX from the command palette.
+            await provider.openComposerPanel(undefined, true);
         }
     );
 

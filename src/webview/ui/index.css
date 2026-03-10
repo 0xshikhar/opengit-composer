@@ -140,6 +140,10 @@ body {
   margin-top: 2px;
 }
 
+.gc-open-panel-btn {
+  margin-top: 6px;
+}
+
 .ai-controls,
 .file-list,
 .commit-tree,

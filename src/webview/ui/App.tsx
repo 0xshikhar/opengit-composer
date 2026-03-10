@@ -141,17 +141,13 @@ export default function App() {
     ]);
 
     const handleCompose = () => {
-        if (!isPanelMode) {
-            postMessage('openComposerPanel', { providerConfig });
-            return;
-        }
         composeInCurrentView(providerConfig);
     };
 
     const handleCommitAll = () => {
         const pending = drafts.filter(d => d.state !== 'committed');
         if (pending.length === 0) return;
-        postMessage('commitAll', { drafts: pending });
+        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot });
     };
 
     const handleRefresh = () => {
@@ -180,6 +176,15 @@ export default function App() {
                 >
                     {isLoading ? '⏳ Analyzing…' : '⚡ Auto-Compose Commits'}
                 </button>
+                {!isPanelMode && (
+                    <button
+                        className="btn btn-secondary btn-full gc-open-panel-btn"
+                        onClick={() => postMessage('openComposerPanel', { providerConfig })}
+                        disabled={isLoading}
+                    >
+                        Open In Full Panel
+                    </button>
+                )}
             </div>
 
             {/* Status Bar */}

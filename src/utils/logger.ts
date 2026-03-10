@@ -19,6 +19,16 @@ function isDebugEnabled(): boolean {
 export class Logger {
     private static outputChannel: OutputChannel | null = null;
     private static debugEnabled: boolean = false;
+    private static readonly maxBufferedLines: number = 1500;
+    private static recentLines: string[] = [];
+
+    private static writeLine(line: string) {
+        this.outputChannel!.appendLine(line);
+        this.recentLines.push(line);
+        if (this.recentLines.length > this.maxBufferedLines) {
+            this.recentLines = this.recentLines.slice(this.recentLines.length - this.maxBufferedLines);
+        }
+    }
 
     static initialize() {
         if (this.outputChannel) return;
@@ -40,21 +50,21 @@ export class Logger {
     static info(message: string, data?: any) {
         this.initialize();
         const msg = `[INFO  ${ts()}] ${message}`;
-        this.outputChannel!.appendLine(msg);
-        if (data) this.outputChannel!.appendLine(this.stringifyData(data));
+        this.writeLine(msg);
+        if (data) this.writeLine(this.stringifyData(data));
         console.log(msg, data ?? '');
     }
 
     static error(message: string, error?: any) {
         this.initialize();
         const msg = `[ERROR ${ts()}] ${message}`;
-        this.outputChannel!.appendLine(msg);
+        this.writeLine(msg);
         
         if (error instanceof Error) {
-            this.outputChannel!.appendLine(`Error: ${error.message}`);
-            this.outputChannel!.appendLine(`Stack: ${error.stack || ''}`);
+            this.writeLine(`Error: ${error.message}`);
+            this.writeLine(`Stack: ${error.stack || ''}`);
         } else if (error) {
-            this.outputChannel!.appendLine(this.stringifyData(error));
+            this.writeLine(this.stringifyData(error));
         }
         console.error(msg, error ?? '');
     }
@@ -63,82 +73,82 @@ export class Logger {
         if (!this.debugEnabled) return;
         this.initialize();
         const msg = `[DEBUG ${ts()}] ${message}`;
-        this.outputChannel!.appendLine(msg);
-        if (data) this.outputChannel!.appendLine(this.stringifyData(data));
+        this.writeLine(msg);
+        if (data) this.writeLine(this.stringifyData(data));
         console.debug(msg, data ?? '');
     }
 
     static aiRequest(provider: string, model: string, promptLength: number) {
         this.initialize();
         const msg = `[AI REQUEST ${ts()}]`;
-        this.outputChannel!.appendLine(msg);
-        this.outputChannel!.appendLine(`  Provider: ${provider}`);
-        this.outputChannel!.appendLine(`  Model: ${model}`);
-        this.outputChannel!.appendLine(`  Prompt Length: ${promptLength} chars`);
+        this.writeLine(msg);
+        this.writeLine(`  Provider: ${provider}`);
+        this.writeLine(`  Model: ${model}`);
+        this.writeLine(`  Prompt Length: ${promptLength} chars`);
     }
 
     static aiResponse(provider: string, statusCode: number, contentLength: number, responseTime: number) {
         this.initialize();
         const msg = `[AI RESPONSE ${ts()}]`;
-        this.outputChannel!.appendLine(msg);
-        this.outputChannel!.appendLine(`  Provider: ${provider}`);
-        this.outputChannel!.appendLine(`  Status: ${statusCode}`);
-        this.outputChannel!.appendLine(`  Content Length: ${contentLength} chars`);
-        this.outputChannel!.appendLine(`  Response Time: ${responseTime}ms`);
+        this.writeLine(msg);
+        this.writeLine(`  Provider: ${provider}`);
+        this.writeLine(`  Status: ${statusCode}`);
+        this.writeLine(`  Content Length: ${contentLength} chars`);
+        this.writeLine(`  Response Time: ${responseTime}ms`);
     }
 
     static aiRawResponse(content: string) {
         if (!this.debugEnabled) return;
         this.initialize();
         const msg = `[AI RAW RESPONSE ${ts()}]`;
-        this.outputChannel!.appendLine(msg);
-        this.outputChannel!.appendLine('━'.repeat(50));
-        this.outputChannel!.appendLine(content);
-        this.outputChannel!.appendLine('━'.repeat(50));
+        this.writeLine(msg);
+        this.writeLine('━'.repeat(50));
+        this.writeLine(content);
+        this.writeLine('━'.repeat(50));
     }
 
     static aiError(provider: string, error: any) {
         this.initialize();
         const msg = `[AI ERROR ${ts()}]`;
-        this.outputChannel!.appendLine(msg);
-        this.outputChannel!.appendLine(`  Provider: ${provider}`);
+        this.writeLine(msg);
+        this.writeLine(`  Provider: ${provider}`);
         
         if (error instanceof Error) {
-            this.outputChannel!.appendLine(`  Error: ${error.message}`);
-            this.outputChannel!.appendLine(`  Stack: ${error.stack || ''}`);
+            this.writeLine(`  Error: ${error.message}`);
+            this.writeLine(`  Stack: ${error.stack || ''}`);
         } else if (error.response) {
-            this.outputChannel!.appendLine(`  Status: ${error.response.status}`);
-            this.outputChannel!.appendLine(`  StatusText: ${error.response.statusText}`);
-            this.outputChannel!.appendLine(`  Data: ${this.stringifyData(error.response.data)}`);
+            this.writeLine(`  Status: ${error.response.status}`);
+            this.writeLine(`  StatusText: ${error.response.statusText}`);
+            this.writeLine(`  Data: ${this.stringifyData(error.response.data)}`);
         } else {
-            this.outputChannel!.appendLine(this.stringifyData(error));
+            this.writeLine(this.stringifyData(error));
         }
     }
 
     static parseAttempt(attempt: number, strategy: string, data?: any) {
         this.initialize();
         const msg = `[PARSE ATTEMPT ${attempt}] ${strategy}`;
-        this.outputChannel!.appendLine(msg);
-        if (data) this.outputChannel!.appendLine(this.stringifyData(data));
+        this.writeLine(msg);
+        if (data) this.writeLine(this.stringifyData(data));
     }
 
     static parseSuccess(strategy: string, groupsCount: number) {
         this.initialize();
         const msg = `[PARSE SUCCESS ${ts()}] Using: ${strategy}, Groups: ${groupsCount}`;
-        this.outputChannel!.appendLine(msg);
+        this.writeLine(msg);
     }
 
     static parseFailure(attempt: number, error: string) {
         this.initialize();
         const msg = `[PARSE FAILED ${ts()}] Attempt ${attempt}: ${error}`;
-        this.outputChannel!.appendLine(msg);
+        this.writeLine(msg);
     }
 
     static warn(message: string, data?: any) {
         this.initialize();
         const msg = `[WARN  ${ts()}] ${message}`;
-        this.outputChannel!.appendLine(msg);
-        if (data) this.outputChannel!.appendLine(this.stringifyData(data));
+        this.writeLine(msg);
+        if (data) this.writeLine(this.stringifyData(data));
         console.warn(msg, data ?? '');
     }
 

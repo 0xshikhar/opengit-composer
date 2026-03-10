@@ -1,12 +1,17 @@
 import * as vscode from 'vscode';
 import { GitService } from '../core/git/gitService';
-import { Orchestrator, ComposeProviderConfig } from '../core/orchestrator';
+import {
+    Orchestrator,
+    ComposeProviderConfig,
+    ComposeSnapshot,
+} from '../core/orchestrator';
 import { CommitExecutor } from '../core/commitExecutor';
 import { ConfigLoader } from '../core/configLoader';
 import { KeyManager } from '../core/keyManager';
 import { DraftCommit } from '../types/commits';
 import { Logger } from '../utils/logger';
 import { OllamaProvider } from '../ai/providers/ollama';
+import { applyPrivacyPolicyToChanges } from '../core/privacyPolicy';
 
 type WebviewSource = 'sidebar' | 'panel';
 
@@ -14,6 +19,16 @@ interface WebviewBootstrapPayload {
     mode: WebviewSource;
     autoCompose?: boolean;
     providerConfig?: ComposeProviderConfig;
+}
+
+type ErrorActionCommand = 'refresh' | 'compose' | 'copySanitizedLogs';
+
+interface ComposeMessageError extends Error {
+    code?: string;
+    action?: {
+        label: string;
+        command: ErrorActionCommand;
+    };
 }
 
 export class CommitComposerProvider implements vscode.WebviewViewProvider {
@@ -488,8 +503,141 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     }
 
     private async postError(webview: vscode.Webview, error: unknown): Promise<void> {
+        const mapped = this.mapErrorToMessage(error);
+        await webview.postMessage({
+            command: 'error',
+            message: mapped.message,
+            code: mapped.code,
+            action: mapped.action,
+        });
+    }
+
+    private async runComposePreflight(providerConfig: ComposeProviderConfig): Promise<void> {
+        const provider = providerConfig.provider || this.getConfigLoader().getConfig().provider;
+        const config = this.getConfigLoader().getConfig();
+        const explicitApiKey = (providerConfig.apiKey || '').trim();
+        const configuredApiKey = (config.apiKey || '').trim();
+
+        if (provider !== 'ollama') {
+            let storedKeys = 0;
+            if (this._keyManager) {
+                storedKeys = await this._keyManager.getKeyCount(provider);
+            }
+            if (!explicitApiKey && !configuredApiKey && storedKeys === 0) {
+                const error = new Error(
+                    `Missing API key for provider "${provider}". Add one in AI Controls before composing.`
+                ) as ComposeMessageError;
+                error.code = 'PRECHECK_MISSING_API_KEY';
+                error.action = {
+                    label: 'Recompose',
+                    command: 'compose',
+                };
+                throw error;
+            }
+            return;
+        }
+
+        const baseUrl = providerConfig.baseUrl || config.baseUrl || config.ollamaHost;
+        const ollamaProvider = new OllamaProvider({ apiKey: '', model: providerConfig.model || '', baseUrl });
+        const reachable = await ollamaProvider.validateApiKey();
+        if (!reachable) {
+            const error = new Error(
+                `Unable to reach Ollama at ${baseUrl}. Check the host and whether Ollama is running.`
+            ) as ComposeMessageError;
+            error.code = 'PRECHECK_OLLAMA_UNREACHABLE';
+            error.action = {
+                label: 'Refresh',
+                command: 'refresh',
+            };
+            throw error;
+        }
+    }
+
+    private buildSnapshotFingerprintFromChanges(changes: { path: string; changeType: string; additions: number; deletions: number }[]): string {
+        return [...changes]
+            .sort((left, right) => left.path.localeCompare(right.path))
+            .map(change => `${change.path}|${change.changeType}|${change.additions}|${change.deletions}`)
+            .join('\n');
+    }
+
+    private async assertSnapshotFresh(snapshot: ComposeSnapshot | undefined): Promise<void> {
+        if (!snapshot) {
+            return;
+        }
+
+        const currentStaged = await this.getOrchestrator().getStagedChanges();
+        const config = this.getConfigLoader().getConfig();
+        const eligible = applyPrivacyPolicyToChanges(currentStaged, {
+            excludePatterns: config.excludePatterns,
+            redactPatterns: [],
+        }).changes;
+
+        const currentFingerprint = this.buildSnapshotFingerprintFromChanges(eligible);
+        if (snapshot.fingerprint !== currentFingerprint) {
+            const error = new Error(
+                'Staged changes have changed since composition. Refresh and re-compose before committing.'
+            ) as ComposeMessageError;
+            error.code = 'STAGED_SNAPSHOT_STALE';
+            error.action = {
+                label: 'Refresh',
+                command: 'refresh',
+            };
+            throw error;
+        }
+    }
+
+    private mapErrorToMessage(error: unknown): {
+        code: string;
+        message: string;
+        action?: { label: string; command: ErrorActionCommand };
+    } {
+        const err = error as ComposeMessageError;
         const message = error instanceof Error ? error.message : String(error);
-        await webview.postMessage({ command: 'error', message });
+        const code = err?.code || 'UNKNOWN_ERROR';
+
+        if (err?.action) {
+            return { code, message, action: err.action };
+        }
+
+        if (code === 'ONLY_EXCLUDED_FILES') {
+            return {
+                code,
+                message: 'All staged files are excluded by your privacy policy. Update exclude patterns or stage different files.',
+                action: { label: 'Refresh', command: 'refresh' },
+            };
+        }
+
+        if (/No API key configured|missing api key/i.test(message)) {
+            return {
+                code: 'PRECHECK_MISSING_API_KEY',
+                message: 'API key is missing for the selected provider. Add a key in AI Controls and compose again.',
+                action: { label: 'Recompose', command: 'compose' },
+            };
+        }
+
+        if (/401|403|unauthorized|invalid api key|forbidden/i.test(message)) {
+            return {
+                code: 'AUTH_ERROR',
+                message: 'Authentication failed for the selected provider. Verify your API key and model access.',
+            };
+        }
+
+        if (/429|rate limit|quota/i.test(message)) {
+            return {
+                code: 'RATE_LIMIT',
+                message: 'Provider rate limit reached. Try again shortly or rotate to another key.',
+            };
+        }
+
+        if (/ENOTFOUND|ECONNREFUSED|network|timeout|timed out/i.test(message)) {
+            return {
+                code: 'NETWORK_ERROR',
+                message: 'Network or provider endpoint is unreachable. Check your connection and provider base URL.',
+                action: { label: 'Refresh', command: 'refresh' },
+            };
+        }
+
+        return { code, message };
     }
 }
 

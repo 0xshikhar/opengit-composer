@@ -99,7 +99,9 @@ export default function AIControls() {
                             <div className="saved-keys-list">
                                 {keys.map((key, idx) => (
                                     <div key={idx} className="saved-key-item">
-                                        <span className="key-masked">{key.masked}</span>
+                                        <span className="key-masked" title={key.label}>
+                                            {key.label}: {key.masked}
+                                        </span>
                                         <button
                                             className="btn-remove-key"
                                             onClick={() => handleRemoveKey(idx)}
@@ -109,21 +111,19 @@ export default function AIControls() {
                                         </button>
                                     </div>
                                 ))}
-                                {providerConfig.provider === 'gemini' && keys.length > 1 && (
+                                {keys.length > 1 && (
                                     <div className="key-rotation-hint">
-                                        🔄 Keys will rotate on each compose
+                                        🔄 Keys rotate automatically on compose (and on retries)
                                     </div>
                                 )}
                             </div>
                             <div className="key-actions">
-                                {(providerConfig.provider === 'gemini' || !hasKeys) && (
-                                    <button
-                                        className="btn btn-sm"
-                                        onClick={() => setShowKeyInput(true)}
-                                    >
-                                        + Add Key
-                                    </button>
-                                )}
+                                <button
+                                    className="btn btn-sm"
+                                    onClick={() => setShowKeyInput(true)}
+                                >
+                                    + Add Key
+                                </button>
                                 <button
                                     className="btn btn-sm btn-danger"
                                     onClick={handleResetAll}

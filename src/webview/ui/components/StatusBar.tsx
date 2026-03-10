@@ -1,8 +1,10 @@
 import React from 'react';
 import { useCommitStore } from '../store/commitStore';
+import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
 export default function StatusBar() {
-    const { isLoading, isCommitting, error, commitProgress, drafts, reasoning, summary } = useCommitStore();
+    const { isLoading, isCommitting, error, errorAction, commitProgress, drafts, reasoning, summary, composeMeta } = useCommitStore();
+    const { postMessage } = useVSCodeAPI();
 
     if (isCommitting && commitProgress) {
         return (
@@ -33,6 +35,14 @@ export default function StatusBar() {
             <div className="status-bar status-error">
                 <span className="status-icon">⚠️</span>
                 <span className="error-text">{error}</span>
+                {errorAction && (
+                    <button
+                        className="btn btn-sm status-inline-action"
+                        onClick={() => postMessage(errorAction.command)}
+                    >
+                        {errorAction.label}
+                    </button>
+                )}
             </div>
         );
     }
@@ -56,6 +66,22 @@ export default function StatusBar() {
                 {summary && (
                     <span className="status-summary" title={summary}>📝</span>
                 )}
+                {composeMeta?.usedFallback && (
+                    <span className="status-fallback-badge" title={composeMeta.fallbackReason || 'Fallback mode'}>
+                        fallback
+                    </span>
+                )}
+                {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (
+                    <span className="status-privacy">
+                        excl:{composeMeta?.excludedFileCount || 0} red:{composeMeta?.redactedMatchCount || 0}
+                    </span>
+                ) : null}
+                <button
+                    className="btn btn-sm status-inline-action"
+                    onClick={() => postMessage('copySanitizedLogs')}
+                >
+                    Copy Logs
+                </button>
             </div>
         );
     }

@@ -179,6 +179,9 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                     case 'openComposerPanel':
                         await this.openComposerPanel(message.providerConfig as ComposeProviderConfig, true);
                         return;
+                    case 'copySanitizedLogs':
+                        await Logger.copySanitizedLogs();
+                        return;
                     case 'triggerCompose':
                     case 'compose':
                         await this.handleComposeWithKeyRotation(

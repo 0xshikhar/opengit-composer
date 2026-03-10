@@ -29,7 +29,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    context.subscriptions.push(autoComposeCommand, showDebugCommand);
+    const copyLogsCommand = vscode.commands.registerCommand(
+        'commitComposer.copySanitizedLogs',
+        async () => {
+            await Logger.copySanitizedLogs();
+        }
+    );
+
+    context.subscriptions.push(autoComposeCommand, showDebugCommand, copyLogsCommand);
     Logger.info('Git Composer commands registered');
 }
 

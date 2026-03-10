@@ -159,14 +159,29 @@ export class Logger {
 
     static showDebugInfo() {
         this.initialize();
-        this.outputChannel!.appendLine('');
-        this.outputChannel!.appendLine('═'.repeat(60));
-        this.outputChannel!.appendLine('DEBUG INFO - Git Composer Extension');
-        this.outputChannel!.appendLine('═'.repeat(60));
-        this.outputChannel!.appendLine(`Debug Mode: ${this.debugEnabled ? 'ENABLED' : 'DISABLED'}`);
-        this.outputChannel!.appendLine(`Enable in: Settings > commitComposer.debugMode`);
-        this.outputChannel!.appendLine('═'.repeat(60));
+        this.writeLine('');
+        this.writeLine('═'.repeat(60));
+        this.writeLine('DEBUG INFO - Git Composer Extension');
+        this.writeLine('═'.repeat(60));
+        this.writeLine(`Debug Mode: ${this.debugEnabled ? 'ENABLED' : 'DISABLED'}`);
+        this.writeLine(`Enable in: Settings > commitComposer.debugMode`);
+        this.writeLine('═'.repeat(60));
         this.outputChannel!.show();
+    }
+
+    static async copySanitizedLogs(): Promise<void> {
+        this.initialize();
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const vscode = require('vscode');
+            const content = this.recentLines
+                .map(line => this.sanitizeLogLine(line))
+                .join('\n');
+            await vscode.env.clipboard.writeText(content);
+            vscode.window.showInformationMessage('Sanitized logs copied to clipboard.');
+        } catch (error) {
+            this.error('Logger: Failed to copy sanitized logs', error);
+        }
     }
 
     private static stringifyData(data: any): string {

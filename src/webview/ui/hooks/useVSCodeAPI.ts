@@ -1,5 +1,5 @@
-import { useEffect, useCallback } from 'react';
-import { useCommitStore, StoredKeyDisplay } from '../store/commitStore';
+import { useCallback } from 'react';
+import { useCommitStore } from '../store/commitStore';
 
 interface VSCodeAPI {
     postMessage: (msg: any) => void;
@@ -40,7 +40,7 @@ export function useVSCodeAPI() {
     const onMessage = useCallback((handler: (message: any) => void) => {
         const listener = (event: MessageEvent) => {
             const msg = event.data;
-            
+
             // Handle key management messages automatically
             if (msg.command === 'keysLoaded' && msg.keys) {
                 setSavedKeys(msg.provider, msg.keys);
@@ -54,12 +54,12 @@ export function useVSCodeAPI() {
             if (msg.command === 'keysReset') {
                 setSavedKeys(msg.provider, []);
             }
-            
+
             // Handle Ollama models
             if (msg.command === 'ollamaModelsLoaded' && msg.models) {
                 setOllamaModels(msg.models);
             }
-            
+
             handler(msg);
         };
         window.addEventListener('message', listener);

@@ -28,7 +28,7 @@ export default function AIControls() {
 
     useEffect(() => {
         loadKeys(providerConfig.provider);
-    }, [providerConfig.provider]);
+    }, [loadKeys, providerConfig.provider]);
 
     useEffect(() => {
         if (isLocal) {
@@ -36,7 +36,7 @@ export default function AIControls() {
         } else {
             setOllamaModels([]);
         }
-    }, [isLocal, providerConfig.baseUrl]);
+    }, [isLocal, providerConfig.baseUrl, setOllamaModels]);
 
     const handleProviderChange = (provider: string) => {
         setProviderConfig({ provider, model: '', apiKey: '' });
@@ -65,7 +65,7 @@ export default function AIControls() {
     };
 
     const handleResetAll = () => {
-        if (confirm('Are you sure you want to remove all saved API keys for this provider?')) {
+        if (window.confirm('Are you sure you want to remove all saved API keys for this provider?')) {
             resetKeys(providerConfig.provider);
         }
     };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCommitStore, DraftCommit } from '../store/commitStore';
+import { useCommitStore } from '../store/commitStore';
 import CommitTreeItem from './CommitTreeItem';
 
 export default function CommitTree() {
@@ -47,7 +47,6 @@ export default function CommitTree() {
                         <CommitTreeItem
                             draft={draft}
                             isSelected={selectedDraftId === draft.id}
-                            index={index}
                             onSelect={() => selectDraft(draft.id)}
                         />
                     </div>

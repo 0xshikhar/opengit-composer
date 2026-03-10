@@ -547,6 +547,20 @@ body {
   font-size: 11px;
 }
 
+.diff-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px var(--gc-pad);
+  border-top: 1px solid var(--vscode-widget-border, #333333);
+}
+
+.diff-footer-text {
+  color: var(--vscode-descriptionForeground, #9a9a9a);
+  font-size: var(--gc-font-sm);
+}
+
 .diff-line {
   display: grid;
   grid-template-columns: 42px 1fr;

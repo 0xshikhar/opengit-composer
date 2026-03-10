@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useCommitStore } from '../store/commitStore';
 
 /**
@@ -8,6 +8,7 @@ import { useCommitStore } from '../store/commitStore';
  */
 export default function DiffViewer() {
     const { selectedFilePath, drafts, stagedFiles, activeView, setActiveView } = useCommitStore();
+    const [lineLimit, setLineLimit] = useState(600);
 
     if (activeView !== 'diff' || !selectedFilePath) {
         return null;
@@ -28,12 +29,21 @@ export default function DiffViewer() {
         );
     }
 
-    const renderDiffLines = (diff: string) => {
-        if (!diff || diff.trim() === '') {
+    const lines = useMemo(() => {
+        if (!file.diff || file.diff.trim() === '') return [];
+        return file.diff.split('\n');
+    }, [file.diff]);
+
+    useEffect(() => {
+        setLineLimit(600);
+    }, [file.path]);
+
+    const renderDiffLines = () => {
+        if (lines.length === 0) {
             return <div className="diff-empty">Binary file or no text diff available.</div>;
         }
 
-        return diff.split('\n').map((line, i) => {
+        return lines.slice(0, lineLimit).map((line, i) => {
             let cls = 'diff-line';
             if (line.startsWith('+') && !line.startsWith('+++')) cls += ' diff-add';
             else if (line.startsWith('-') && !line.startsWith('---')) cls += ' diff-del';
@@ -60,8 +70,30 @@ export default function DiffViewer() {
                 <button className="btn btn-sm" onClick={() => setActiveView('tree')}>✕ Close</button>
             </div>
             <div className="diff-content">
-                {renderDiffLines(file.diff)}
+                {renderDiffLines()}
             </div>
+            {lines.length > lineLimit && (
+                <div className="diff-footer">
+                    <span className="diff-footer-text">
+                        Showing {lineLimit} of {lines.length} lines
+                    </span>
+                    <button className="btn btn-sm" onClick={() => setLineLimit(limit => limit + 600)}>
+                        Show More
+                    </button>
+                </div>
+            )}
+            {lineLimit > 600 && (
+                <div className="diff-footer">
+                    <button className="btn btn-sm" onClick={() => setLineLimit(600)}>
+                        Collapse
+                    </button>
+                </div>
+            )}
+            {lines.length > 3000 && (
+                <div className="diff-footer">
+                    <span className="diff-footer-text">Large diff detected. Use file-level review for best performance.</span>
+                </div>
+            )}
         </div>
     );
 }

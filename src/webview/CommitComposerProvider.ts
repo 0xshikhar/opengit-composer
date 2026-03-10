@@ -205,10 +205,18 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                         );
                         return;
                     case 'commitSingle':
-                        await this.handleCommitSingle(message.draft as DraftCommit, webview);
+                        await this.handleCommitSingle(
+                            message.draft as DraftCommit,
+                            message.snapshot as ComposeSnapshot | undefined,
+                            webview
+                        );
                         return;
                     case 'commitAll':
-                        await this.handleCommitAll(message.drafts as DraftCommit[], webview);
+                        await this.handleCommitAll(
+                            message.drafts as DraftCommit[],
+                            message.snapshot as ComposeSnapshot | undefined,
+                            webview
+                        );
                         return;
                     case 'refresh':
                         await this.loadChanges(webview);
@@ -320,6 +328,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         webview: vscode.Webview
     ): Promise<void> {
         let resolvedConfig: ComposeProviderConfig = providerConfig || this.getDefaultProviderConfig();
+        await this.runComposePreflight(resolvedConfig);
 
         if (resolvedConfig.provider === 'ollama' || !this._keyManager) {
             await this.handleCompose(resolvedConfig, webview);
@@ -383,17 +392,29 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             drafts: result.drafts,
             reasoning: result.reasoning,
             summary: result.summary,
+            snapshot: result.snapshot,
+            meta: result.meta,
         });
     }
 
-    private async handleCommitSingle(draft: DraftCommit, webview: vscode.Webview): Promise<void> {
+    private async handleCommitSingle(
+        draft: DraftCommit,
+        snapshot: ComposeSnapshot | undefined,
+        webview: vscode.Webview
+    ): Promise<void> {
+        await this.assertSnapshotFresh(snapshot);
         await this.getCommitExecutor().executeSingle(draft);
         vscode.window.showInformationMessage(`Committed: ${draft.message.split('\n')[0]}`);
         await webview.postMessage({ command: 'commitSuccess', draftId: draft.id });
         await this.refreshAllVisibleViews();
     }
 
-    private async handleCommitAll(drafts: DraftCommit[], webview: vscode.Webview): Promise<void> {
+    private async handleCommitAll(
+        drafts: DraftCommit[],
+        snapshot: ComposeSnapshot | undefined,
+        webview: vscode.Webview
+    ): Promise<void> {
+        await this.assertSnapshotFresh(snapshot);
         const results = await this.getCommitExecutor().executeAll(drafts, progress => {
             void webview.postMessage({
                 command: 'commitProgress',

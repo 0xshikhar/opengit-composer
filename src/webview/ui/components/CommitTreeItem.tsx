@@ -5,15 +5,14 @@ import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 interface Props {
     draft: DraftCommit;
     isSelected: boolean;
-    index: number;
     onSelect: () => void;
 }
 
-export default function CommitTreeItem({ draft, isSelected, index, onSelect }: Props) {
+export default function CommitTreeItem({ draft, isSelected, onSelect }: Props) {
     const [expanded, setExpanded] = useState(false);
     const [editing, setEditing] = useState(false);
     const [editMessage, setEditMessage] = useState(draft.message);
-    const { updateDraftMessage, removeDraft, confirmDraft, selectFile } = useCommitStore();
+    const { updateDraftMessage, removeDraft, confirmDraft, selectFile, composeSnapshot } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     const handleSave = () => {
@@ -23,7 +22,7 @@ export default function CommitTreeItem({ draft, isSelected, index, onSelect }: P
 
     const handleCommitSingle = () => {
         confirmDraft(draft.id);
-        postMessage('commitSingle', { draft });
+        postMessage('commitSingle', { draft, snapshot: composeSnapshot });
     };
 
     const stateIcon = {

@@ -52,13 +52,13 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
             updateDraftMessage(selectedDraft.id, draftForCommit.message);
         }
 
-        postMessage('commitSingle', { draft: draftForCommit });
+        postMessage('commitSingle', { draft: draftForCommit, snapshot: composeSnapshot });
     };
 
     const handleCommitAll = () => {
         const pending = drafts.filter(draft => draft.state !== 'committed');
         if (pending.length === 0) return;
-        postMessage('commitAll', { drafts: pending });
+        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot });
     };
 
     const pendingCount = drafts.filter(draft => draft.state !== 'committed').length;

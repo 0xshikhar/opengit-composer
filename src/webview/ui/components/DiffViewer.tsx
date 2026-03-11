@@ -9,6 +9,9 @@ import { useCommitStore } from '../store/commitStore';
 export default function DiffViewer() {
     const { selectedFilePath, drafts, stagedFiles, unstagedFiles, activeView, setActiveView } = useCommitStore();
     const [lineLimit, setLineLimit] = useState(600);
+    const [query, setQuery] = useState('');
+    const [wrap, setWrap] = useState(false);
+    const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
     if (activeView !== 'diff' || !selectedFilePath) {
         return null;
@@ -37,7 +40,58 @@ export default function DiffViewer() {
 
     useEffect(() => {
         setLineLimit(600);
+        setQuery('');
+        setActiveMatchIndex(0);
     }, [file.path]);
+
+    const matchLineIndexes = useMemo(() => {
+        const trimmed = query.trim();
+        if (!trimmed) return [];
+        const needle = trimmed.toLowerCase();
+        const visible = lines.slice(0, lineLimit);
+        const indexes: number[] = [];
+        for (let i = 0; i < visible.length; i++) {
+            if (visible[i].toLowerCase().includes(needle)) {
+                indexes.push(i);
+            }
+        }
+        return indexes;
+    }, [lines, lineLimit, query]);
+
+    useEffect(() => {
+        if (matchLineIndexes.length === 0) return;
+        const clamped = Math.max(0, Math.min(activeMatchIndex, matchLineIndexes.length - 1));
+        if (clamped !== activeMatchIndex) setActiveMatchIndex(clamped);
+    }, [activeMatchIndex, matchLineIndexes.length]);
+
+    const focusMatch = (index: number) => {
+        if (matchLineIndexes.length === 0) return;
+        const wrappedIndex = ((index % matchLineIndexes.length) + matchLineIndexes.length) % matchLineIndexes.length;
+        setActiveMatchIndex(wrappedIndex);
+        const lineIdx = matchLineIndexes[wrappedIndex];
+        const el = document.getElementById(`diff-line-${lineIdx}`);
+        if (el) el.scrollIntoView({ block: 'center' });
+    };
+
+    const renderHighlighted = (line: string) => {
+        const trimmed = query.trim();
+        if (!trimmed) return line || ' ';
+        const needle = trimmed.toLowerCase();
+        const lower = line.toLowerCase();
+        const idx = lower.indexOf(needle);
+        if (idx === -1) return line || ' ';
+
+        const before = line.slice(0, idx);
+        const match = line.slice(idx, idx + trimmed.length);
+        const after = line.slice(idx + trimmed.length);
+        return (
+            <>
+                {before}
+                <mark className="diff-mark">{match}</mark>
+                {after}
+            </>
+        );
+    };
 
     const renderDiffLines = () => {
         if (lines.length === 0) {
@@ -52,21 +106,59 @@ export default function DiffViewer() {
             else if (line.startsWith('diff ') || line.startsWith('index ')) cls += ' diff-meta';
 
             return (
-                <div key={i} className={cls}>
+                <div key={i} id={`diff-line-${i}`} className={cls}>
                     <span className="diff-line-num">{i + 1}</span>
-                    <span className="diff-line-content">{line || ' '}</span>
+                    <span className="diff-line-content">{renderHighlighted(line)}</span>
                 </div>
             );
         });
     };
 
     return (
-        <div className="diff-viewer">
+        <div className={`diff-viewer ${wrap ? 'diff-wrap' : ''}`}>
             <div className="diff-header">
                 <span className="diff-file-name">{selectedFilePath}</span>
                 <div className="diff-header-stats">
                     <span className="stat-add">+{file.additions}</span>
                     <span className="stat-del">−{file.deletions}</span>
+                </div>
+                <div className="diff-search">
+                    <input
+                        className="diff-search-input"
+                        type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search diff…"
+                        spellCheck={false}
+                    />
+                    {query.trim() ? (
+                        <span className="diff-search-count" title="Matches in the currently visible lines">
+                            {matchLineIndexes.length ? `${activeMatchIndex + 1}/${matchLineIndexes.length}` : '0/0'}
+                        </span>
+                    ) : null}
+                    <button
+                        className="btn btn-sm"
+                        onClick={() => focusMatch(activeMatchIndex - 1)}
+                        disabled={matchLineIndexes.length === 0}
+                        title="Previous match"
+                    >
+                        ↑
+                    </button>
+                    <button
+                        className="btn btn-sm"
+                        onClick={() => focusMatch(activeMatchIndex + 1)}
+                        disabled={matchLineIndexes.length === 0}
+                        title="Next match"
+                    >
+                        ↓
+                    </button>
+                    <button
+                        className="btn btn-sm"
+                        onClick={() => setWrap(value => !value)}
+                        title={wrap ? 'Disable line wrapping' : 'Enable line wrapping'}
+                    >
+                        {wrap ? 'Wrap: On' : 'Wrap: Off'}
+                    </button>
                 </div>
                 <button className="btn btn-sm" onClick={() => setActiveView('tree')}>✕ Close</button>
             </div>

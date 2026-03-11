@@ -200,14 +200,15 @@ export default function App() {
                 <section className="sidebar-launch-card">
                     <div className="sidebar-launch-title">Working Changes</div>
                     <div className="sidebar-launch-meta">
-                        {stagedFiles.length} staged, {unstagedFiles.length} unstaged
+                        {stagedFiles.length} staged • {unstagedFiles.length} unstaged
                     </div>
                     <button
                         className="btn btn-primary btn-full"
                         onClick={() => handleComposeInPanel(false)}
                         disabled={stagedFiles.length === 0}
+                        title={stagedFiles.length === 0 ? 'Stage changes to compose commits' : 'Opens the full composer panel'}
                     >
-                        Compose Commits...
+                        Compose commit
                     </button>
                 </section>
             )}

@@ -225,7 +225,7 @@ export class Orchestrator {
 
             const drafts: DraftCommit[] = result.groups.map(group => ({
                 id: group.id || uuidv4(),
-                message: group.message,
+                message: this.normalizeCommitMessage(group.message),
                 description: group.description,
                 files: group.files,
                 state: 'generated' as const,
@@ -392,7 +392,7 @@ export class Orchestrator {
             return this.aiProvider.generateCommitMessage(files)
                 .then(aiMessage => {
                     if (aiMessage && aiMessage.trim()) {
-                        message = aiMessage.trim();
+                        message = this.normalizeCommitMessage(aiMessage.trim());
                     }
                     return this.buildForcedDraftPayload(groupName, files, index, message, true);
                 })
@@ -400,6 +400,34 @@ export class Orchestrator {
         }
 
         return this.buildForcedDraftPayload(groupName, files, index, message, false);
+    }
+
+    private normalizeCommitMessage(message: string): string {
+        const lines = message.split('\n');
+        const subject = lines[0]?.trim() || '';
+        lines[0] = this.normalizeConventionalSubject(subject);
+        return lines.join('\n').trim();
+    }
+
+    private normalizeConventionalSubject(subject: string): string {
+        const prefixMatch = subject.match(/^([a-z]+(?:\([^)]+\))?!?:)\s*/i);
+        if (!prefixMatch) {
+            return subject;
+        }
+
+        const prefix = prefixMatch[1];
+        let remainder = subject.slice(prefixMatch[0].length).trimStart();
+        const duplicatePrefix = new RegExp(`^${this.escapeRegExp(prefix)}\\s*`, 'i');
+
+        while (duplicatePrefix.test(remainder)) {
+            remainder = remainder.replace(duplicatePrefix, '').trimStart();
+        }
+
+        return remainder ? `${prefix} ${remainder}` : prefix;
+    }
+
+    private escapeRegExp(value: string): string {
+        return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     private buildForcedDraftPayload(

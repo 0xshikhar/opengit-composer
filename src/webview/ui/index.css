@@ -193,9 +193,13 @@ body {
 }
 
 .ai-settings-toggle {
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--vscode-widget-border, #333333);
+  border-radius: 8px;
+  min-width: 36px;
+  min-height: 32px;
 }
 
 .ai-provider-summary {

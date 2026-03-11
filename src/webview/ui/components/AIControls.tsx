@@ -87,8 +87,10 @@ export default function AIControls() {
                 <span className="section-label">⚡ AI Provider</span>
                 <button
                     className="btn btn-icon ai-settings-toggle"
+                    type="button"
                     onClick={() => setSettingsOpen(value => !value)}
                     title={settingsOpen ? 'Hide model and key settings' : 'Show model and key settings'}
+                    aria-label={settingsOpen ? 'Hide AI provider settings' : 'Show AI provider settings'}
                 >
                     ⚙
                 </button>
@@ -209,6 +211,15 @@ export default function AIControls() {
                             <label className="ai-label">API Key</label>
                             <div className="api-key-empty-state">
                                 <span className="api-key-hint">No API key set. Add one above to enable AI compose.</span>
+                            </div>
+                            <div className="key-actions">
+                                <button
+                                    className="btn btn-sm btn-primary"
+                                    type="button"
+                                    onClick={() => setShowKeyInput(true)}
+                                >
+                                    + Add Key
+                                </button>
                             </div>
                         </div>
                     )}

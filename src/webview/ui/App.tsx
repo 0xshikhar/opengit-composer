@@ -67,8 +67,13 @@ export default function App() {
         const unsub = onMessage((message) => {
             switch (message.command) {
                 case 'dataLoaded':
+                    if ((useCommitStore.getState().error || '').includes('Staged changes have changed since composition')) {
+                        setDrafts([], null, null, null, null);
+                        setActiveView('tree');
+                    }
                     setStagedFiles(message.data.staged || []);
                     setUnstagedFiles(message.data.unstaged || []);
+                    setError(null, null);
                     if (message.data.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }

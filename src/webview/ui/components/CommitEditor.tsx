@@ -3,15 +3,17 @@ import { useCommitStore } from '../store/commitStore';
 
 export default function CommitEditor() {
     const { selectedDraftId, drafts, updateDraftMessage, setActiveView } = useCommitStore();
+    const draft = drafts.find(d => d.id === selectedDraftId) || null;
+    const [message, setMessage] = useState(() => draft?.message || '');
 
-    if (!selectedDraftId) {
+    React.useEffect(() => {
+        setMessage(draft?.message || '');
+    }, [draft?.id, draft?.message]);
+
+    if (!selectedDraftId || !draft) {
         return null;
     }
 
-    const draft = drafts.find(d => d.id === selectedDraftId);
-    if (!draft) return null;
-
-    const [message, setMessage] = useState(draft.message);
     const subjectLength = message.split('\n')[0].length;
     const isOverLimit = subjectLength > 72;
 

@@ -2,13 +2,13 @@
 
 **OpenGit Composer** is a VS Code extension that intelligently groups your staged changes into semantic, atomic commits using AI.
 
-Say goodbye to massive, unstructured commits. Let OpenGit Composer act as your personal AI git assistant right from the VS Code sidebar.
+Say goodbye to massive, unstructured commits. Let OpenGit Composer act as your personal AI git assistant from the VS Code Activity Bar and composer panel.
 
-![OpenGit Composer V2](https://via.placeholder.com/800x400?text=Git+Composer+V2)
+> Screenshot update in progress: current UX is Activity Bar container + optional full panel workspace.
 
 ## ✨ New in V2
 
-- **Integrated Sidebar Experience:** OpenGit Composer now lives natively in the VS Code Source Control (SCM) sidebar. No more switching contexts!
+- **Integrated Sidebar Experience:** OpenGit Composer lives in its own Activity Bar container (`OpenGit Composer`) with a dedicated compose workspace.
 - **Bring Your Own Model:** First-class support for multiple LLMs:
   - OpenAI (GPT-4o, GPT-4)
   - Anthropic (Claude 3 Opus/Sonnet/Haiku)
@@ -37,7 +37,7 @@ Say goodbye to massive, unstructured commits. Let OpenGit Composer act as your p
 ## 📖 Usage
 
 1. **Stage your changes** in the Source Control view as usual.
-2. Open the **OpenGit Composer** panel in your left activity bar (or under the Source Control view).
+2. Open the **OpenGit Composer** icon in the left **Activity Bar**.
 3. If you have no provider set, use the built-in Settings UI to pick an AI provider and enter your API Key.
 4. Click the **Sparkle / Compose** button to let the AI analyze your staged diffs.
 5. Review the generated **Draft Commits** in the interactive tree.
@@ -56,6 +56,8 @@ OpenGit Composer is highly customizable. Configure it via VS Code Settings (`Cmd
 | `commitComposer.commitFormat`     | Commit message format (`conventional`, `angular`, `gitmoji`, `custom`) | `conventional`           |
 | `commitComposer.maxSubjectLength` | Maximum character length for commit subject line                       | `72`                     |
 | `commitComposer.splitThreshold`   | Number of files above which the splitter groups into multiple commits  | `3`                      |
+| `commitComposer.excludePatterns`  | Glob patterns excluded from AI compose inputs                          | `[]`                     |
+| `commitComposer.redactPatterns`   | Regex patterns redacted before AI requests                             | `[]`                     |
 
 ## 🔑 Your Data & Privacy
 
@@ -63,11 +65,8 @@ To use the AI generation, you provide an API key for your chosen cloud provider.
 
 - Your API key is stored securely in your local VS Code settings and never transmitted to our servers.
 - The Git Repository Diff is sent directly to your chosen provider (OpenAI/Anthropic/Google).
+- You can exclude files or redact sensitive strings using `excludePatterns` and `redactPatterns`.
 - **100% Privacy Option:** Select **`ollama`** as your provider to keep all code analysis completely offline and local on your machine!
-
-## 🤝 Contributing & Support
-
-Issues and feature requests are welcome! Feel free to report issues on the repository.
 
 ---
 

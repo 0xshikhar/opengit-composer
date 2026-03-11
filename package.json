@@ -7,7 +7,7 @@
   "publisherWebsite": "https://shikhar.xyz",
   "version": "2.0.0",
   "license": "MIT",
-  "icon": "icon.png",
+  "icon": "media/icon.png",
   "homepage": "https://github.com/0xshikhar/git-composer",
   "repository": {
     "type": "git",
@@ -51,7 +51,9 @@
   },
   "activationEvents": [
     "onView:commitComposer.sidebarView",
-    "onCommand:commitComposer.autoCompose"
+    "onCommand:commitComposer.autoCompose",
+    "onCommand:commitComposer.showDebug",
+    "onCommand:commitComposer.copySanitizedLogs"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -60,7 +62,7 @@
         {
           "id": "commitComposerContainer",
           "title": "OpenGit Composer",
-          "icon": "media/icon.png"
+          "icon": "media/icon.svg"
         }
       ]
     },
@@ -81,6 +83,10 @@
       {
         "command": "commitComposer.showDebug",
         "title": "Commit Composer: Show Debug Logs"
+      },
+      {
+        "command": "commitComposer.copySanitizedLogs",
+        "title": "Commit Composer: Copy Sanitized Logs"
       }
     ],
     "configuration": {
@@ -138,6 +144,22 @@
           "type": "boolean",
           "default": false,
           "description": "Enable debug mode for detailed AI logging in Output panel"
+        },
+        "commitComposer.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Glob-style file patterns excluded from AI compose input (for privacy control)"
+        },
+        "commitComposer.redactPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Regex patterns to redact from staged diff text before sending to AI providers"
         }
       }
     }

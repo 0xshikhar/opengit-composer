@@ -28,6 +28,7 @@ export default function App() {
 
     const {
         stagedFiles,
+        unstagedFiles,
         drafts,
         isLoading,
         isCommitting,
@@ -35,6 +36,7 @@ export default function App() {
         activeView,
         composeSnapshot,
         setStagedFiles,
+        setUnstagedFiles,
         setDrafts,
         setLoading,
         setCommitting,
@@ -66,6 +68,7 @@ export default function App() {
             switch (message.command) {
                 case 'dataLoaded':
                     setStagedFiles(message.data.staged || []);
+                    setUnstagedFiles(message.data.unstaged || []);
                     if (message.data.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }
@@ -145,10 +148,11 @@ export default function App() {
         setLoading,
         setProviderConfig,
         setStagedFiles,
+        setUnstagedFiles,
     ]);
 
-    const handleCompose = () => {
-        composeInCurrentView(providerConfig);
+    const handleComposeInPanel = (autoCompose: boolean) => {
+        postMessage('openComposerPanel', { providerConfig, autoCompose });
     };
 
     const handleCommitAll = () => {
@@ -171,34 +175,49 @@ export default function App() {
                 <button className="btn btn-icon" onClick={handleRefresh} title="Refresh">↻</button>
             </div>
 
-            {/* AI Controls */}
-            <AIControls />
+            {isPanelMode ? (
+                <>
+                    {/* AI Controls */}
+                    <AIControls />
 
-            {/* Compose Button */}
-            <div className="gc-compose-section">
-                <button
-                    className="btn btn-primary btn-full"
-                    onClick={handleCompose}
-                    disabled={isLoading || stagedFiles.length === 0}
-                >
-                    {isLoading ? '⏳ Analyzing…' : '⚡ Auto-Compose Commits'}
-                </button>
-                {!isPanelMode && (
+                    {/* Compose Button */}
+                    <div className="gc-compose-section">
+                        <button
+                            className="btn btn-primary btn-full"
+                            onClick={() => composeInCurrentView(providerConfig)}
+                            disabled={isLoading || stagedFiles.length === 0}
+                        >
+                            {isLoading ? '⏳ Analyzing…' : '⚡ Auto-Compose Commits'}
+                        </button>
+                    </div>
+                </>
+            ) : (
+                <section className="sidebar-launch-card">
+                    <div className="sidebar-launch-title">Working Changes</div>
+                    <div className="sidebar-launch-meta">
+                        {stagedFiles.length} staged, {unstagedFiles.length} unstaged
+                    </div>
                     <button
-                        className="btn btn-secondary btn-full gc-open-panel-btn"
-                        onClick={() => postMessage('openComposerPanel', { providerConfig })}
-                        disabled={isLoading}
+                        className="btn btn-primary btn-full"
+                        onClick={() => handleComposeInPanel(false)}
+                        disabled={stagedFiles.length === 0}
                     >
-                        Open In Full Panel
+                        Compose Commits...
                     </button>
-                )}
-            </div>
+                </section>
+            )}
 
             {/* Status Bar */}
             <StatusBar />
 
             {/* Main Content */}
-            {activeView === 'compose' ? (
+            {!isPanelMode ? (
+                activeView === 'diff' ? (
+                    <DiffViewer />
+                ) : (
+                    <FileList />
+                )
+            ) : activeView === 'compose' ? (
                 <ComposeWorkspace isPanelMode={isPanelMode} />
             ) : activeView === 'diff' ? (
                 <DiffViewer />
@@ -206,13 +225,7 @@ export default function App() {
                 <CommitEditor />
             ) : (
                 <>
-                    {/* File List */}
-                    <FileList />
-
-                    {/* Draft Commits */}
                     <CommitTree />
-
-                    {/* Commit All Button */}
                     {pendingCount > 0 && (
                         <div className="gc-commit-all-section">
                             <button

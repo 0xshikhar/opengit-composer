@@ -62,6 +62,7 @@ export interface ErrorAction {
 interface CommitStoreState {
     // Data
     stagedFiles: FileChange[];
+    unstagedFiles: FileChange[];
     drafts: DraftCommit[];
     summary: string | null;
     reasoning: string | null;
@@ -92,6 +93,7 @@ interface CommitStoreState {
 
     // Actions
     setStagedFiles: (files: FileChange[]) => void;
+    setUnstagedFiles: (files: FileChange[]) => void;
     setDrafts: (
         drafts: DraftCommit[],
         reasoning?: string | null,
@@ -129,6 +131,7 @@ const generateId = () => Math.random().toString(36).substring(2, 10);
 export const useCommitStore = create<CommitStoreState>((set, get) => ({
     // Initial state
     stagedFiles: [],
+    unstagedFiles: [],
     drafts: [],
     summary: null,
     reasoning: null,
@@ -153,6 +156,7 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
 
     // Setters
     setStagedFiles: (files) => set({ stagedFiles: files }),
+    setUnstagedFiles: (files) => set({ unstagedFiles: files }),
     setDrafts: (drafts, reasoning = null, summary = null, snapshot = null, meta = null) =>
         set({
             drafts,
@@ -262,6 +266,7 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     reset: () =>
         set({
             stagedFiles: [],
+            unstagedFiles: [],
             drafts: [],
             summary: null,
             reasoning: null,

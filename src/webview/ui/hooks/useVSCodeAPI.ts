@@ -83,5 +83,9 @@ export function useVSCodeAPI() {
         postMessage('resetKeys', { provider });
     }, [postMessage]);
 
-    return { postMessage, onMessage, api, loadKeys, saveKey, removeKey, resetKeys };
+    const saveProviderPreference = useCallback((provider: string, model: string, baseUrl: string) => {
+        postMessage('saveProviderPreference', { provider, model, baseUrl });
+    }, [postMessage]);
+
+    return { postMessage, onMessage, api, loadKeys, saveKey, removeKey, resetKeys, saveProviderPreference };
 }

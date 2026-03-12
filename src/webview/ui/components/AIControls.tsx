@@ -12,9 +12,10 @@ const PROVIDERS = [
 
 export default function AIControls() {
     const { providerConfig, setProviderConfig, isLoading, savedKeys, showKeyInput, setShowKeyInput, ollamaModels, setOllamaModels } = useCommitStore();
-    const { loadKeys, saveKey, removeKey, resetKeys, postMessage } = useVSCodeAPI();
+    const { loadKeys, saveKey, removeKey, resetKeys, postMessage, saveProviderPreference } = useVSCodeAPI();
     const [newKey, setNewKey] = useState('');
     const [newKeyLabel, setNewKeyLabel] = useState('');
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     const selectedProvider = PROVIDERS.find(p => p.value === providerConfig.provider) || PROVIDERS[0];
     const isLocal = providerConfig.provider === 'ollama';
@@ -43,10 +44,20 @@ export default function AIControls() {
         setShowKeyInput(false);
         setNewKey('');
         setNewKeyLabel('');
+        // Save preference immediately when switching provider
+        saveProviderPreference(provider, '', providerConfig.baseUrl || '');
+    };
+
+    const handleModelChange = (model: string) => {
+        setProviderConfig({ model });
+        // Save preference when model changes
+        saveProviderPreference(providerConfig.provider, model, providerConfig.baseUrl || '');
     };
 
     const handleHostChange = (host: string) => {
         setProviderConfig({ baseUrl: host });
+        // Save preference when host changes
+        saveProviderPreference(providerConfig.provider, providerConfig.model, host);
         if (isLocal) {
             loadOllamaModels();
         }
@@ -74,8 +85,33 @@ export default function AIControls() {
         <div className="ai-controls">
             <div className="ai-controls-header">
                 <span className="section-label">⚡ AI Provider</span>
+                <button
+                    className="btn btn-icon ai-settings-toggle"
+                    onClick={() => setSettingsOpen(value => !value)}
+                    title={settingsOpen ? 'Hide model and key settings' : 'Show model and key settings'}
+                >
+                    ⚙
+                </button>
             </div>
 
+            <div className="ai-provider-summary">
+                <span className="ai-provider-pill">{selectedProvider.label}</span>
+                <span className="ai-provider-meta">
+                    {isLocal ? 'Local runtime' : hasKeys ? `Keys configured: ${keys.length}` : 'No keys configured'}
+                </span>
+                <span className="ai-provider-meta">
+                    Model: {providerConfig.model || 'Default'}
+                </span>
+            </div>
+
+            {!settingsOpen && (
+                <div className="ai-collapsed-note">
+                    Use the settings toggle to configure provider keys, model, host, and instructions.
+                </div>
+            )}
+
+            {settingsOpen && (
+                <>
             <div className="ai-control-row">
                 <label className="ai-label">Provider</label>
                 <select
@@ -95,27 +131,9 @@ export default function AIControls() {
                     {/* Saved Keys Display */}
                     {hasKeys && !showKeyInput && (
                         <div className="ai-control-row">
-                            <label className="ai-label">Saved Keys</label>
-                            <div className="saved-keys-list">
-                                {keys.map((key, idx) => (
-                                    <div key={idx} className="saved-key-item">
-                                        <span className="key-masked" title={key.label}>
-                                            {key.label}: {key.masked}
-                                        </span>
-                                        <button
-                                            className="btn-remove-key"
-                                            onClick={() => handleRemoveKey(idx)}
-                                            title="Remove this key"
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                ))}
-                                {keys.length > 1 && (
-                                    <div className="key-rotation-hint">
-                                        🔄 Keys rotate automatically on compose (and on retries)
-                                    </div>
-                                )}
+                            <label className="ai-label">API Keys</label>
+                            <div className="api-key-empty-state">
+                                <span className="api-key-hint">{keys.length} keys are securely stored for this provider.</span>
                             </div>
                             <div className="key-actions">
                                 <button
@@ -124,13 +142,21 @@ export default function AIControls() {
                                 >
                                     + Add Key
                                 </button>
-                                <button
-                                    className="btn btn-sm btn-danger"
-                                    onClick={handleResetAll}
-                                >
-                                    Reset All
-                                </button>
+                                {keys.length > 1 && (
+                                    <button
+                                        className="btn btn-sm"
+                                        onClick={() => handleRemoveKey(keys.length - 1)}
+                                    >
+                                        Remove Last
+                                    </button>
+                                )}
+                                <button className="btn btn-sm btn-danger" onClick={handleResetAll}>Reset All</button>
                             </div>
+                            {keys.length > 1 && (
+                                <div className="key-rotation-hint">
+                                    Keys rotate automatically on compose retries.
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -178,29 +204,12 @@ export default function AIControls() {
                     )}
 
                     {/* No keys saved - show input */}
-                    {!hasKeys && !showKeyInput && (
+                    {!hasKeys && !showKeyInput && providerConfig.provider !== 'ollama' && (
                         <div className="ai-control-row">
                             <label className="ai-label">API Key</label>
-                            <input
-                                type="password"
-                                className="ai-input"
-                                value={providerConfig.apiKey}
-                                onChange={(e) => setProviderConfig({ apiKey: e.target.value })}
-                                placeholder="Enter API Key"
-                                disabled={isLoading}
-                            />
-                            <button
-                                className="btn btn-sm btn-primary"
-                                onClick={() => {
-                                    if (providerConfig.apiKey) {
-                                        saveKey(providerConfig.provider, providerConfig.apiKey.trim(), 'Default');
-                                        setProviderConfig({ apiKey: '' }); // Clear field so rotation uses saved key
-                                    }
-                                }}
-                                disabled={isLoading || !providerConfig.apiKey}
-                            >
-                                Save Key
-                            </button>
+                            <div className="api-key-empty-state">
+                                <span className="api-key-hint">No API key set. Add one above to enable AI compose.</span>
+                            </div>
                         </div>
                     )}
                 </>
@@ -225,7 +234,7 @@ export default function AIControls() {
                 <select
                     className="ai-select"
                     value={providerConfig.model}
-                    onChange={(e) => setProviderConfig({ model: e.target.value })}
+                    onChange={(e) => handleModelChange(e.target.value)}
                     disabled={isLoading}
                 >
                     <option value="">Default</option>
@@ -246,6 +255,8 @@ export default function AIControls() {
                     disabled={isLoading}
                 />
             </div>
+                </>
+            )}
         </div>
     );
 }

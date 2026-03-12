@@ -7,7 +7,7 @@ import { useCommitStore } from '../store/commitStore';
  *  due to CSP restrictions. We use a lightweight syntax-highlighted diff view instead.)
  */
 export default function DiffViewer() {
-    const { selectedFilePath, drafts, stagedFiles, activeView, setActiveView } = useCommitStore();
+    const { selectedFilePath, drafts, stagedFiles, unstagedFiles, activeView, setActiveView } = useCommitStore();
     const [lineLimit, setLineLimit] = useState(600);
 
     if (activeView !== 'diff' || !selectedFilePath) {
@@ -16,6 +16,7 @@ export default function DiffViewer() {
 
     // Find the diff string from staged files or drafts
     const file = stagedFiles.find(f => f.path === selectedFilePath)
+        || unstagedFiles.find(f => f.path === selectedFilePath)
         || drafts.flatMap(d => d.files).find(f => f.path === selectedFilePath);
 
     if (!file) {

@@ -192,7 +192,10 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                         await this.handleResetKeys(String(message.provider || ''), webview);
                         return;
                     case 'openComposerPanel':
-                        await this.openComposerPanel(message.providerConfig as ComposeProviderConfig, true);
+                        await this.openComposerPanel(
+                            message.providerConfig as ComposeProviderConfig,
+                            typeof message.autoCompose === 'boolean' ? message.autoCompose : true
+                        );
                         return;
                     case 'copySanitizedLogs':
                         await Logger.copySanitizedLogs();
@@ -224,6 +227,14 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                     case 'loadOllamaModels':
                         await this.handleLoadOllamaModels(
                             String(message.baseUrl || 'http://localhost:11434'),
+                            webview
+                        );
+                        return;
+                    case 'saveProviderPreference':
+                        await this.handleSaveProviderPreference(
+                            String(message.provider || ''),
+                            String(message.model || ''),
+                            String(message.baseUrl || ''),
                             webview
                         );
                         return;
@@ -310,6 +321,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
     private async loadChanges(webview: vscode.Webview): Promise<void> {
         const staged = await this.getOrchestrator().getStagedChanges();
+        const unstaged = await this.getOrchestrator().getUnstagedChanges();
         const config = this.getConfigLoader().getConfig();
         const providerConfig = {
             provider: config.provider,
@@ -319,7 +331,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
         await webview.postMessage({
             command: 'dataLoaded',
-            data: { staged, providerConfig },
+            data: { staged, unstaged, providerConfig },
         });
     }
 
@@ -520,6 +532,44 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             await webview.postMessage({ command: 'ollamaModelsLoaded', models: [], error: message });
+        }
+    }
+
+    private async handleSaveProviderPreference(
+        provider: string,
+        model: string,
+        baseUrl: string,
+        webview: vscode.Webview
+    ): Promise<void> {
+        try {
+            const config = this.getConfigLoader();
+            const currentConfig = config.getConfig();
+            
+            // Update VS Code settings for provider preference
+            const vscode = require('vscode');
+            const vsConfig = vscode.workspace.getConfiguration('commitComposer');
+            
+            await vsConfig.update('aiProvider', provider, true);
+            await vsConfig.update('model', model, true);
+            
+            if (provider === 'ollama' && baseUrl) {
+                await vsConfig.update('ollamaHost', baseUrl, true);
+            }
+            
+            await webview.postMessage({ 
+                command: 'providerPreferenceSaved', 
+                success: true,
+                provider,
+                model,
+                baseUrl 
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await webview.postMessage({ 
+                command: 'providerPreferenceSaved', 
+                success: false, 
+                error: message 
+            });
         }
     }
 

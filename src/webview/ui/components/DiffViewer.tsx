@@ -13,25 +13,16 @@ export default function DiffViewer() {
     const [wrap, setWrap] = useState(false);
     const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
-    if (activeView !== 'diff' || !selectedFilePath) {
-        return null;
-    }
+    // Keep hooks unconditional so the component can re-render safely as the
+    // selected file and active view change.
+    const file = useMemo(() => {
+        if (!selectedFilePath) return null;
 
-    // Find the diff string from staged files or drafts
-    const file = stagedFiles.find(f => f.path === selectedFilePath)
-        || unstagedFiles.find(f => f.path === selectedFilePath)
-        || drafts.flatMap(d => d.files).find(f => f.path === selectedFilePath);
-
-    if (!file) {
-        return (
-            <div className="diff-viewer">
-                <div className="diff-header">
-                    <span>No diff available</span>
-                    <button className="btn btn-sm" onClick={() => setActiveView('tree')}>✕</button>
-                </div>
-            </div>
-        );
-    }
+        return stagedFiles.find(f => f.path === selectedFilePath)
+            || unstagedFiles.find(f => f.path === selectedFilePath)
+            || drafts.flatMap(d => d.files).find(f => f.path === selectedFilePath)
+            || null;
+    }, [drafts, selectedFilePath, stagedFiles, unstagedFiles]);
 
     const lines = useMemo(() => {
         if (!file?.diff || file.diff.trim() === '') return [];
@@ -42,7 +33,7 @@ export default function DiffViewer() {
         setLineLimit(600);
         setQuery('');
         setActiveMatchIndex(0);
-    }, [file.path]);
+    }, [file?.path]);
 
     const matchLineIndexes = useMemo(() => {
         const trimmed = query.trim();
@@ -107,9 +98,7 @@ export default function DiffViewer() {
 
             return (
                 <div key={i} id={`diff-line-${i}`} className={cls}>
-                <div key={i} id={`diff-line-${i}`} className={cls}>
                     <span className="diff-line-num">{i + 1}</span>
-                    <span className="diff-line-content">{renderHighlighted(line)}</span>
                     <span className="diff-line-content">{renderHighlighted(line)}</span>
                 </div>
             );
@@ -133,50 +122,11 @@ export default function DiffViewer() {
 
     return (
         <div className={`diff-viewer ${wrap ? 'diff-wrap' : ''}`}>
-        <div className={`diff-viewer ${wrap ? 'diff-wrap' : ''}`}>
             <div className="diff-header">
                 <span className="diff-file-name">{selectedFilePath}</span>
                 <div className="diff-header-stats">
                     <span className="stat-add">+{file.additions}</span>
                     <span className="stat-del">−{file.deletions}</span>
-                </div>
-                <div className="diff-search">
-                    <input
-                        className="diff-search-input"
-                        type="text"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search diff…"
-                        spellCheck={false}
-                    />
-                    {query.trim() ? (
-                        <span className="diff-search-count" title="Matches in the currently visible lines">
-                            {matchLineIndexes.length ? `${activeMatchIndex + 1}/${matchLineIndexes.length}` : '0/0'}
-                        </span>
-                    ) : null}
-                    <button
-                        className="btn btn-sm"
-                        onClick={() => focusMatch(activeMatchIndex - 1)}
-                        disabled={matchLineIndexes.length === 0}
-                        title="Previous match"
-                    >
-                        ↑
-                    </button>
-                    <button
-                        className="btn btn-sm"
-                        onClick={() => focusMatch(activeMatchIndex + 1)}
-                        disabled={matchLineIndexes.length === 0}
-                        title="Next match"
-                    >
-                        ↓
-                    </button>
-                    <button
-                        className="btn btn-sm"
-                        onClick={() => setWrap(value => !value)}
-                        title={wrap ? 'Disable line wrapping' : 'Enable line wrapping'}
-                    >
-                        {wrap ? 'Wrap: On' : 'Wrap: Off'}
-                    </button>
                 </div>
                 <div className="diff-search">
                     <input

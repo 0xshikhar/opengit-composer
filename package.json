@@ -7,7 +7,7 @@
   "publisherWebsite": "https://shikhar.xyz",
   "version": "2.0.0",
   "license": "MIT",
-  "icon": "media/icon.png",
+  "icon": "icon.png",
   "homepage": "https://github.com/0xshikhar/git-composer",
   "repository": {
     "type": "git",

@@ -4,7 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, requestWithRetry } from './providerUtils';
+import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
 
 /**
  * Ollama provider — local model inference via REST API.
@@ -61,12 +61,31 @@ export class OllamaProvider extends AIProvider {
         }
     }
 
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        const selectedModel = (this.config.model || 'llama3.2').trim();
+        const models = await this.getAvailableModels();
+        if (models.length === 0) {
+            return {
+                available: true,
+                reason: 'Ollama server reachable, but no models were reported.',
+                models,
+            };
+        }
+        if (!models.some(model => modelIdsMatch(selectedModel, model))) {
+            return {
+                available: false,
+                reason: `Model "${selectedModel}" is not available on the configured Ollama server.`,
+                models,
+            };
+        }
+        return { available: true, models };
+    }
+
     async getAvailableModels(): Promise<string[]> {
         try {
             Logger.info('OllamaProvider: Fetching available models');
             const response = await axios.get(`${this.baseUrl}/api/tags`, { timeout: 10000 });
-            const models = response.data.models || [];
-            return models.map((m: { name: string }) => m.name);
+            return extractModelIds(response.data);
         } catch (error) {
             Logger.error('OllamaProvider: Failed to fetch models', error);
             return [];

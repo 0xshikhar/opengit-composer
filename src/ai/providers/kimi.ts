@@ -4,7 +4,7 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, requestWithRetry } from './providerUtils';
+import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
 
 /**
  * Kimi (Moonshot) provider — uses OpenAI-compatible API format.
@@ -63,6 +63,31 @@ export class KimiProvider extends AIProvider {
         } catch (error) {
             Logger.error('KimiProvider: API key validation failed', error);
             return false;
+        }
+    }
+
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        const selectedModel = (this.config.model || 'moonshot-v1-8k').trim();
+        const baseUrl = this.config.baseUrl || 'https://api.moonshot.cn/v1';
+        try {
+            const response = await axios.get(`${baseUrl}/models`, {
+                headers: { Authorization: `Bearer ${this.config.apiKey}` },
+                timeout: 5000,
+            });
+            const models = extractModelIds(response.data);
+            if (models.length > 0 && !models.some(model => modelIdsMatch(selectedModel, model))) {
+                return {
+                    available: false,
+                    reason: `Model "${selectedModel}" is not available for this Moonshot key.`,
+                    models,
+                };
+            }
+            return { available: true, models };
+        } catch (error) {
+            return {
+                available: false,
+                reason: error instanceof Error ? error.message : 'Unable to verify model availability.',
+            };
         }
     }
 

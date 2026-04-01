@@ -48,7 +48,9 @@ export class ResponseParser {
             });
             composed.parserMeta = {
                 usedFallback: false,
-                strategy: 'structured-json',
+                strategy: parsedPayload.parseStrategy || 'structured-json',
+                qualityScore: parsedPayload.qualityScore ?? 90,
+                details: parsedPayload.details,
             };
             return composed;
         }
@@ -58,18 +60,24 @@ export class ResponseParser {
         fallback.parserMeta = {
             usedFallback: true,
             strategy: 'heuristic-fallback',
+            qualityScore: 35,
+            details: 'The model output could not be parsed into valid commit groups, so files were regrouped heuristically.',
         };
         return fallback;
     }
 
     static parseMessageResponse(response: string): string {
-        return response
-            .replace(/```[\s\S]*?```/g, '')
-            .replace(/^[\s\n]+|[\s\n]+$/g, '')
+        const trimmed = response.trim();
+        if (!trimmed) return '';
+
+        return trimmed
+            .replace(/```(?:\w+)?\s*([\s\S]*?)\s*```/g, (_match, content: string) => content.trim())
+            .replace(/```(?:\w+)?\n?/g, '')
+            .replace(/```/g, '')
             .trim();
     }
 
-    private static tryParsePayload(response: string): ParsedPayload | null {
+    private static tryParsePayload(response: string): (ParsedPayload & { parseStrategy?: string; qualityScore?: number; details?: string }) | null {
         const cleaned = this.extractLikelyJson(response);
         const candidates = this.buildJsonCandidates(cleaned);
 
@@ -90,7 +98,20 @@ export class ResponseParser {
 
                 const summary = this.getString(parsed.summary);
                 const reasoning = this.getString(parsed.reasoning);
-                return { summary, reasoning, groups };
+                const parseStrategy =
+                    candidate === response.trim()
+                        ? 'structured-json'
+                        : candidate.includes('```')
+                            ? 'fenced-json-repaired'
+                            : 'repaired-json';
+                const qualityScore =
+                    parseStrategy === 'structured-json' ? 95 :
+                    parseStrategy === 'fenced-json-repaired' ? 85 : 80;
+                const details =
+                    parseStrategy === 'structured-json'
+                        ? 'Model output was already valid JSON.'
+                        : 'Model output required JSON repair before grouping could be applied.';
+                return { summary, reasoning, groups, parseStrategy, qualityScore, details };
             } catch {
                 // Try next candidate
             }
@@ -136,6 +157,10 @@ export class ResponseParser {
             groups,
             summary: payload.summary,
             reasoning: payload.reasoning,
+            parserMeta: {
+                usedFallback: false,
+                strategy: 'structured-json',
+            },
         };
     }
 
@@ -181,7 +206,7 @@ export class ResponseParser {
         return {
             groups,
             summary: 'A heuristic fallback grouping was generated.',
-            reasoning: 'The AI response was malformed or empty, so files were grouped by top-level area.',
+            reasoning: 'The AI response was malformed or empty, so files were grouped by top-level area. Review the generated commit boundaries before committing.',
         };
     }
 
@@ -352,7 +377,12 @@ export class ResponseParser {
     }
 
     private static extractLikelyJson(text: string): string {
-        return text
+        const trimmed = text.trim();
+        const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (fenced?.[1]) {
+            return fenced[1].trim();
+        }
+        return trimmed
             .replace(/```json/gi, '')
             .replace(/```/g, '')
             .trim();

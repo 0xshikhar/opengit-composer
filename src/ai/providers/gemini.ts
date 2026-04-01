@@ -4,7 +4,14 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, requestWithRetry } from './providerUtils';
+import {
+    buildProviderError,
+    extractModelIds,
+    modelIdsMatch,
+    normalizeModelId,
+    requestWithRetry,
+} from './providerUtils';
+import { getProviderDefaultModel, getProviderModelOptions } from '../../utils/constant';
 
 export class GeminiProvider extends AIProvider {
     private readonly endpoint = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -65,9 +72,34 @@ export class GeminiProvider extends AIProvider {
         }
     }
 
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        const selectedModel = normalizeModelId(this.config.model || getProviderDefaultModel('gemini'));
+        const fallbackModels = [...getProviderModelOptions('gemini')];
+        try {
+            const response = await axios.get(`${this.endpoint}?key=${this.config.apiKey}`, { timeout: 5000 });
+            const models = extractModelIds(response.data);
+            const availableModels = models.length > 0 ? models : fallbackModels;
+            const matchesSelectedModel = availableModels.some((model: string) => modelIdsMatch(selectedModel, model));
+            if (!matchesSelectedModel) {
+                return {
+                    available: false,
+                    reason: `Model "${selectedModel}" is not listed for this Gemini key.`,
+                    models: availableModels,
+                };
+            }
+            return { available: true, models: availableModels };
+        } catch (error) {
+            return {
+                available: false,
+                reason: error instanceof Error ? error.message : 'Unable to verify model availability.',
+                models: fallbackModels,
+            };
+        }
+    }
+
     protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
         try {
-            const model = this.config.model || 'gemini-2.5-flash';
+            const model = this.config.model || getProviderDefaultModel('gemini');
             const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
 
             Logger.debug('GeminiProvider: Making API request', {

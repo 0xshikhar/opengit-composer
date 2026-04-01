@@ -17,6 +17,8 @@ export interface AIResponse {
     parserMeta?: {
         usedFallback: boolean;
         strategy: string;
+        qualityScore?: number;
+        details?: string;
     };
 }
 
@@ -38,6 +40,9 @@ export abstract class AIProvider {
     abstract analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse>;
     abstract generateCommitMessage(files: FileChange[]): Promise<string>;
     abstract validateApiKey(): Promise<boolean>;
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        return { available: true };
+    }
 
     protected abstract makeRequest(prompt: string): Promise<any>;
 }

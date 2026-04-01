@@ -3,7 +3,8 @@ import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../a
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
-import { buildProviderError, requestWithRetry } from './providerUtils';
+import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import { getProviderDefaultModel, getProviderModelOptions } from '../../utils/constant';
 
 export class GroqProvider extends AIProvider {
     private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
@@ -55,6 +56,35 @@ export class GroqProvider extends AIProvider {
         }
     }
 
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        const selectedModel = (this.config.model || getProviderDefaultModel('groq')).trim();
+        const fallbackModels = [...getProviderModelOptions('groq')];
+        try {
+            const response = await axios.get('https://api.groq.com/openai/v1/models', {
+                headers: {
+                    Authorization: `Bearer ${this.config.apiKey}`,
+                },
+                timeout: 5000,
+            });
+            const models = extractModelIds(response.data);
+            const availableModels = models.length > 0 ? models : fallbackModels;
+            if (!availableModels.some(model => modelIdsMatch(selectedModel, model))) {
+                return {
+                    available: false,
+                    reason: `Model "${selectedModel}" is not available for this Groq key.`,
+                    models: availableModels,
+                };
+            }
+            return { available: true, models: availableModels };
+        } catch (error) {
+            return {
+                available: false,
+                reason: error instanceof Error ? error.message : 'Unable to verify model availability.',
+                models: fallbackModels,
+            };
+        }
+    }
+
     protected async makeRequest(prompt: string): Promise<any> {
         try {
             const response = await requestWithRetry(
@@ -62,7 +92,7 @@ export class GroqProvider extends AIProvider {
                 () => axios.post(
                     this.endpoint,
                     {
-                        model: this.config.model || 'llama3-70b-8192',
+                        model: this.config.model || getProviderDefaultModel('groq'),
                         messages: [
                             {
                                 role: 'system',

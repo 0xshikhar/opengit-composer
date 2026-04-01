@@ -4,10 +4,12 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, requestWithRetry } from './providerUtils';
+import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import { getProviderDefaultModel, getProviderModelOptions } from '../../utils/constant';
 
 export class AnthropicProvider extends AIProvider {
     private readonly endpoint = 'https://api.anthropic.com/v1/messages';
+    private readonly modelsEndpoint = 'https://api.anthropic.com/v1/models';
 
     async analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse> {
         Logger.info('AnthropicProvider: Analyzing changes', { fileCount: changes.length });
@@ -36,14 +38,48 @@ export class AnthropicProvider extends AIProvider {
 
     async validateApiKey(): Promise<boolean> {
         try {
-            // Simple validation by making a small request
-            // Note: Anthropic doesn't have a simple 'validate' endpoint like OpenAI's /models that is cheap/free always, 
-            // but we can try a minimal request or just assume valid if structure is correct.
-            // For now, let's try a minimal request.
-            await this.makeRequest('Test');
+            await requestWithRetry(
+                'AnthropicProvider.validateApiKey',
+                () => axios.get('https://api.anthropic.com/v1/models', {
+                    headers: {
+                        'x-api-key': this.config.apiKey,
+                        'anthropic-version': '2023-06-01',
+                    },
+                    timeout: 5000,
+                }),
+                2
+            );
             return true;
         } catch (error) {
             return false;
+        }
+    }
+
+    async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
+        const selectedModel = (this.config.model || getProviderDefaultModel('anthropic')).trim();
+        try {
+            const response = await axios.get(this.modelsEndpoint, {
+                headers: {
+                    'x-api-key': this.config.apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                timeout: 5000,
+            });
+            const models = extractModelIds(response.data);
+            const fallbackModels = [...getProviderModelOptions('anthropic')];
+            if (models.length > 0 && !models.some(model => modelIdsMatch(selectedModel, model))) {
+                return {
+                    available: false,
+                    reason: `Model "${selectedModel}" is not available for this Anthropic key.`,
+                    models,
+                };
+            }
+            return { available: true, models: models.length > 0 ? models : fallbackModels };
+        } catch (error) {
+            return {
+                available: false,
+                reason: error instanceof Error ? error.message : 'Unable to verify model availability.',
+            };
         }
     }
 
@@ -54,7 +90,7 @@ export class AnthropicProvider extends AIProvider {
                 () => axios.post(
                     this.endpoint,
                     {
-                        model: this.config.model || 'claude-sonnet-4-20250514',
+                        model: this.config.model || getProviderDefaultModel('anthropic'),
                         max_tokens: this.config.maxTokens || 3000,
                         messages: [
                             {

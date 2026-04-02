@@ -81,6 +81,33 @@ export async function requestWithRetry<T>(
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
+export function normalizeModelId(model: string): string {
+    return model
+        .trim()
+        .replace(/^publishers\/[^/]+\/models\//, '')
+        .replace(/^models\//, '');
+}
+
+export function modelIdsMatch(selectedModel: string, availableModel: string): boolean {
+    const selected = normalizeModelId(selectedModel);
+    const available = normalizeModelId(availableModel);
+    return available === selected || available.endsWith(`/${selected}`) || available.endsWith(selected);
+}
+
+export function extractModelIds(payload: unknown): string[] {
+    const normalizedPayload = payload as { data?: unknown; models?: unknown };
+    const items = Array.isArray(normalizedPayload?.data)
+        ? normalizedPayload.data
+        : Array.isArray(normalizedPayload?.models)
+            ? normalizedPayload.models
+            : [];
+
+    return items
+        .map((item: any) => item?.id || item?.name)
+        .filter(Boolean)
+        .map((model: string) => normalizeModelId(model));
+}
+
 export function buildProviderError(prefix: string, error: unknown): Error {
     if (axios.isAxiosError(error)) {
         const responseData = error.response?.data as any;

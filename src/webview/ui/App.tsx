@@ -14,6 +14,7 @@ type BootstrapPayload = {
     mode?: 'sidebar' | 'panel';
     autoCompose?: boolean;
     providerConfig?: Partial<ReturnType<typeof useCommitStore.getState>['providerConfig']>;
+    logoUri?: string;
 };
 
 function readBootstrapPayload(): BootstrapPayload {
@@ -25,6 +26,7 @@ export default function App() {
     const bootstrap = useMemo(readBootstrapPayload, []);
     const isPanelMode = bootstrap.mode === 'panel';
     const autoComposeTriggered = useRef(false);
+    const logoUri = bootstrap.logoUri;
 
     const {
         stagedFiles,
@@ -45,6 +47,9 @@ export default function App() {
         markCommitted,
         setProviderConfig,
         setActiveView,
+        setPrivacyPreview,
+        setConnectionTest,
+        setDiagnostics,
     } = useCommitStore();
 
     const { postMessage, onMessage } = useVSCodeAPI();
@@ -73,7 +78,11 @@ export default function App() {
                     }
                     setStagedFiles(message.data.staged || []);
                     setUnstagedFiles(message.data.unstaged || []);
+                    if (message.data.privacyPreview) {
+                        setPrivacyPreview(message.data.privacyPreview);
+                    }
                     setError(null, null);
+                    setDiagnostics(null);
                     if (message.data.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }
@@ -101,6 +110,7 @@ export default function App() {
                     );
                     setLoading(false);
                     setActiveView('compose');
+                    setDiagnostics(null);
                     if ((message.drafts || []).length > 0) {
                         const firstId = message.drafts[0].id;
                         useCommitStore.getState().selectDraft(firstId);
@@ -127,9 +137,14 @@ export default function App() {
                     break;
 
                 case 'error':
-                    setError(message.message, message.action || null);
+                    setError(message.message, message.action || null, message.diagnostics || null);
                     setLoading(false);
                     setCommitting(false);
+                    break;
+                case 'connectionTested':
+                    if (message.result) {
+                        setConnectionTest(message.result);
+                    }
                     break;
             }
         });
@@ -152,6 +167,9 @@ export default function App() {
         setError,
         setLoading,
         setProviderConfig,
+        setPrivacyPreview,
+        setConnectionTest,
+        setDiagnostics,
         setStagedFiles,
         setUnstagedFiles,
     ]);
@@ -176,7 +194,21 @@ export default function App() {
         <div className="git-composer">
             {/* Header */}
             <div className="gc-header">
-                <h2 className="gc-title">OpenGit Composer</h2>
+                <div className="gc-brand">
+                    <div className="gc-brand-mark" aria-hidden="true">
+                        {logoUri ? (
+                            <img className="gc-brand-logo" src={logoUri} alt="" />
+                        ) : (
+                            <span className="gc-brand-fallback">OC</span>
+                        )}
+                    </div>
+                    <div className="gc-brand-copy">
+                        <h2 className="gc-title">OpenGit Composer</h2>
+                        <div className="gc-subtitle">
+                            {isPanelMode ? 'Compose and review staged changes' : 'Sidebar launcher'}
+                        </div>
+                    </div>
+                </div>
                 <button className="btn btn-icon" onClick={handleRefresh} title="Refresh">↻</button>
             </div>
 

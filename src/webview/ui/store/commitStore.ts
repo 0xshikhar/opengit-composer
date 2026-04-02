@@ -52,11 +52,43 @@ export interface ComposeMeta {
     fallbackReason?: string;
     excludedFileCount: number;
     redactedMatchCount: number;
+    invalidExcludePatterns?: string[];
+    invalidRedactPatterns?: string[];
+    parserFallbackStrategy?: string;
+    parserFallbackDetails?: string;
+    parserQualityScore?: number;
+}
+
+export interface PrivacyPreview {
+    excludedCount: number;
+    redactedCount: number;
+    invalidExcludePatterns: string[];
+    invalidRedactPatterns: string[];
+    warnings: string[];
+}
+
+export interface ProviderDiagnostics {
+    provider: string;
+    code: string;
+    message: string;
+    status?: number;
+    requestId?: string;
+    model?: string;
+    details?: string;
+    hint?: string;
+}
+
+export interface ConnectionTestResult {
+    provider: string;
+    available: boolean;
+    modelAvailable: boolean;
+    message: string;
+    models?: string[];
 }
 
 export interface ErrorAction {
     label: string;
-    command: 'refresh' | 'compose' | 'copySanitizedLogs';
+    command: 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection';
 }
 
 interface CommitStoreState {
@@ -68,6 +100,9 @@ interface CommitStoreState {
     reasoning: string | null;
     composeSnapshot: ComposeSnapshot | null;
     composeMeta: ComposeMeta | null;
+    privacyPreview: PrivacyPreview | null;
+    connectionTest: ConnectionTestResult | null;
+    diagnostics: ProviderDiagnostics | null;
 
     // UI state
     selectedDraftId: string | null;
@@ -105,13 +140,16 @@ interface CommitStoreState {
     selectFile: (path: string | null) => void;
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
-    setError: (error: string | null, action?: ErrorAction | null) => void;
+    setError: (error: string | null, action?: ErrorAction | null, diagnostics?: ProviderDiagnostics | null) => void;
     setCommitProgress: (progress: { current: number; total: number } | null) => void;
     setProviderConfig: (config: Partial<ProviderConfig>) => void;
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
     setSavedKeys: (provider: string, keys: StoredKeyDisplay[]) => void;
     setShowKeyInput: (show: boolean) => void;
     setOllamaModels: (models: string[]) => void;
+    setPrivacyPreview: (preview: PrivacyPreview | null) => void;
+    setConnectionTest: (result: ConnectionTestResult | null) => void;
+    setDiagnostics: (diagnostics: ProviderDiagnostics | null) => void;
 
     // Draft manipulation
     updateDraftMessage: (id: string, message: string) => void;
@@ -137,6 +175,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     reasoning: null,
     composeSnapshot: null,
     composeMeta: null,
+    privacyPreview: null,
+    connectionTest: null,
+    diagnostics: null,
     selectedDraftId: null,
     selectedFilePath: null,
     isLoading: false,
@@ -166,12 +207,13 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             composeMeta: meta,
             error: null,
             errorAction: null,
+            diagnostics: null,
         }),
     selectDraft: (id) => set({ selectedDraftId: id }),
     selectFile: (path) => set({ selectedFilePath: path, activeView: 'diff' }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
-    setError: (error, action = null) => set({ error, errorAction: action }),
+    setError: (error, action = null, diagnostics = null) => set({ error, errorAction: action, diagnostics }),
     setCommitProgress: (progress) => set({ commitProgress: progress }),
     setProviderConfig: (config) =>
         set((state) => ({
@@ -184,6 +226,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
         })),
     setShowKeyInput: (show) => set({ showKeyInput: show }),
     setOllamaModels: (models) => set({ ollamaModels: models }),
+    setPrivacyPreview: (preview) => set({ privacyPreview: preview }),
+    setConnectionTest: (result) => set({ connectionTest: result }),
+    setDiagnostics: (diagnostics) => set({ diagnostics }),
 
     // Draft manipulation
     updateDraftMessage: (id, message) =>
@@ -272,6 +317,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             reasoning: null,
             composeSnapshot: null,
             composeMeta: null,
+            privacyPreview: null,
+            connectionTest: null,
+            diagnostics: null,
             selectedDraftId: null,
             selectedFilePath: null,
             isLoading: false,

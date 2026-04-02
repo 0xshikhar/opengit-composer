@@ -3,7 +3,7 @@ import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
 export default function StatusBar() {
-    const { isLoading, isCommitting, error, errorAction, commitProgress, drafts, reasoning, summary, composeMeta } = useCommitStore();
+    const { isLoading, isCommitting, error, errorAction, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     if (isCommitting && commitProgress) {
@@ -35,6 +35,11 @@ export default function StatusBar() {
             <div className="status-bar status-error">
                 <span className="status-icon">⚠️</span>
                 <span className="error-text">{error}</span>
+                {diagnostics && (
+                    <span className="status-privacy" title={diagnostics.details || diagnostics.message}>
+                        {diagnostics.provider}:{diagnostics.code}{diagnostics.status ? ` • ${diagnostics.status}` : ''}
+                    </span>
+                )}
                 {errorAction && (
                     <button
                         className="btn btn-sm status-inline-action"

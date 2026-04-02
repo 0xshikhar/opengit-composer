@@ -90,9 +90,25 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
                             Fallback mode active ({composeMeta.fallbackReason || 'AI fallback'}).
                         </p>
                     )}
+                    {composeMeta?.parserFallbackStrategy && (
+                        <p className="compose-summary">
+                            Parser strategy: {composeMeta.parserFallbackStrategy}
+                            {composeMeta.parserQualityScore ? ` • quality ${composeMeta.parserQualityScore}/100` : ''}
+                        </p>
+                    )}
+                    {composeMeta?.parserFallbackDetails && (
+                        <p className="compose-summary">
+                            {composeMeta.parserFallbackDetails}
+                        </p>
+                    )}
                     {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (
                         <p className="compose-summary">
                             Privacy policy: excluded {composeMeta?.excludedFileCount || 0} file(s), redacted {composeMeta?.redactedMatchCount || 0} match(es).
+                        </p>
+                    ) : null}
+                    {(composeMeta?.invalidExcludePatterns?.length || composeMeta?.invalidRedactPatterns?.length) ? (
+                        <p className="compose-summary compose-summary-warning">
+                            Invalid privacy patterns were ignored before compose.
                         </p>
                     ) : null}
                 </div>

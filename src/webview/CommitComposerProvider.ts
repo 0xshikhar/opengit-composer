@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import axios from 'axios';
 import { GitService } from '../core/git/gitService';
 import {
     Orchestrator,
@@ -12,6 +13,7 @@ import { DraftCommit } from '../types/commits';
 import { Logger } from '../utils/logger';
 import { OllamaProvider } from '../ai/providers/ollama';
 import { applyPrivacyPolicyToChanges } from '../core/privacyPolicy';
+import { AIProviderFactory } from '../ai/aiProviderFactory';
 
 type WebviewSource = 'sidebar' | 'panel';
 
@@ -19,15 +21,26 @@ interface WebviewBootstrapPayload {
     mode: WebviewSource;
     autoCompose?: boolean;
     providerConfig?: ComposeProviderConfig;
+    logoUri?: string;
 }
 
-type ErrorActionCommand = 'refresh' | 'compose' | 'copySanitizedLogs';
+type ErrorActionCommand = 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection';
 
 interface ComposeMessageError extends Error {
     code?: string;
     action?: {
         label: string;
         command: ErrorActionCommand;
+    };
+    diagnostics?: {
+        provider: string;
+        code: string;
+        message: string;
+        status?: number;
+        requestId?: string;
+        model?: string;
+        details?: string;
+        hint?: string;
     };
 }
 
@@ -200,9 +213,27 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                     case 'copySanitizedLogs':
                         await Logger.copySanitizedLogs();
                         return;
+                    case 'testProviderConnection':
+                        await this.handleTestProviderConnection(
+                            message.providerConfig as ComposeProviderConfig | undefined,
+                            webview
+                        );
+                        return;
                     case 'triggerCompose':
                     case 'compose':
                         await this.handleComposeWithKeyRotation(
+                            message.providerConfig as ComposeProviderConfig | undefined,
+                            webview
+                        );
+                        return;
+                    case 'retryCompose':
+                        await this.handleComposeWithKeyRotation(
+                            message.providerConfig as ComposeProviderConfig | undefined,
+                            webview
+                        );
+                        return;
+                    case 'testConnection':
+                        await this.handleTestProviderConnection(
                             message.providerConfig as ComposeProviderConfig | undefined,
                             webview
                         );
@@ -253,9 +284,15 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview.js')
         );
+        const logoUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'icon.png')
+        );
         const nonce = getNonce();
         const cspSource = webview.cspSource;
-        const bootstrapJson = JSON.stringify(bootstrap).replace(/</g, '\\u003c');
+        const bootstrapJson = JSON.stringify({
+            ...bootstrap,
+            logoUri: logoUri.toString(),
+        }).replace(/</g, '\\u003c');
 
         return `<!DOCTYPE html>
             <html lang="en">
@@ -328,10 +365,25 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             model: config.model,
             baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : undefined),
         };
+        const privacyResult = applyPrivacyPolicyToChanges(staged, {
+            excludePatterns: config.excludePatterns,
+            redactPatterns: config.redactPatterns,
+        });
 
         await webview.postMessage({
             command: 'dataLoaded',
-            data: { staged, unstaged, providerConfig },
+            data: {
+                staged,
+                unstaged,
+                providerConfig,
+                privacyPreview: {
+                    excludedCount: privacyResult.excludedPaths.length,
+                    redactedCount: privacyResult.redactedMatches,
+                    invalidExcludePatterns: privacyResult.invalidExcludePatterns,
+                    invalidRedactPatterns: privacyResult.invalidRedactPatterns,
+                    warnings: privacyResult.warnings.map(warning => warning.message),
+                },
+            },
         });
     }
 
@@ -393,6 +445,37 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         throw lastError instanceof Error
             ? lastError
             : new Error('All configured API keys failed for compose request.');
+    }
+
+    private async handleTestProviderConnection(
+        providerConfig: ComposeProviderConfig | undefined,
+        webview: vscode.Webview
+    ): Promise<void> {
+        const resolvedConfig = providerConfig || this.getDefaultProviderConfig();
+        const apiKey = await this.resolveApiKeyForProvider(resolvedConfig.provider, resolvedConfig.apiKey);
+        const provider = AIProviderFactory.create(resolvedConfig.provider, {
+            apiKey,
+            model: resolvedConfig.model || '',
+            baseUrl: resolvedConfig.baseUrl,
+        });
+
+        const authOk = await provider.validateApiKey();
+        const modelCheck = await provider.validateModelAvailability();
+
+        await webview.postMessage({
+            command: 'connectionTested',
+            result: {
+                provider: resolvedConfig.provider,
+                available: authOk,
+                modelAvailable: modelCheck.available,
+                message: authOk
+                    ? (modelCheck.available
+                        ? 'Connection and model check passed.'
+                        : modelCheck.reason || 'Connection passed, but model availability is uncertain.')
+                    : 'Provider connection failed.',
+                models: modelCheck.models,
+            },
+        });
     }
 
     private async handleCompose(providerConfig: ComposeProviderConfig, webview: vscode.Webview): Promise<void> {
@@ -580,6 +663,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             message: mapped.message,
             code: mapped.code,
             action: mapped.action,
+            diagnostics: mapped.diagnostics,
         });
     }
 
@@ -605,23 +689,61 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                 };
                 throw error;
             }
-            return;
         }
 
-        const baseUrl = providerConfig.baseUrl || config.baseUrl || config.ollamaHost;
-        const ollamaProvider = new OllamaProvider({ apiKey: '', model: providerConfig.model || '', baseUrl });
-        const reachable = await ollamaProvider.validateApiKey();
+        const resolvedApiKey = await this.resolveApiKeyForProvider(provider, explicitApiKey || configuredApiKey);
+        const providerInstance = AIProviderFactory.create(provider, {
+            apiKey: resolvedApiKey,
+            model: providerConfig.model || config.model || '',
+            baseUrl: providerConfig.baseUrl || config.baseUrl || (provider === 'ollama' ? config.ollamaHost : undefined),
+        });
+
+        const reachable = await providerInstance.validateApiKey();
         if (!reachable) {
             const error = new Error(
-                `Unable to reach Ollama at ${baseUrl}. Check the host and whether Ollama is running.`
+                provider === 'ollama'
+                    ? `Unable to reach Ollama at ${providerConfig.baseUrl || config.baseUrl || config.ollamaHost}. Check the host and whether Ollama is running.`
+                    : `Unable to validate credentials for provider "${provider}". Check your API key and network access.`
             ) as ComposeMessageError;
-            error.code = 'PRECHECK_OLLAMA_UNREACHABLE';
+            error.code = provider === 'ollama' ? 'PRECHECK_OLLAMA_UNREACHABLE' : 'AUTH_ERROR';
             error.action = {
-                label: 'Refresh',
-                command: 'refresh',
+                label: 'Test Connection',
+                command: 'testConnection',
             };
             throw error;
         }
+
+        const modelCheck = await providerInstance.validateModelAvailability();
+        if (!modelCheck.available) {
+            const error = new Error(
+                modelCheck.reason || `Model "${providerConfig.model || config.model}" is not available for provider "${provider}".`
+            ) as ComposeMessageError;
+            error.code = 'PRECHECK_MODEL_UNAVAILABLE';
+            error.action = {
+                label: 'Test Connection',
+                command: 'testConnection',
+            };
+            throw error;
+        }
+    }
+
+    private async resolveApiKeyForProvider(provider: string, preferredKey?: string): Promise<string> {
+        const trimmed = (preferredKey || '').trim();
+        if (trimmed) {
+            return trimmed;
+        }
+
+        if (!this._keyManager) {
+            return trimmed;
+        }
+
+        const currentKey = await this._keyManager.getCurrentKey(provider);
+        if (currentKey) {
+            return currentKey;
+        }
+
+        const keys = await this._keyManager.getKeys(provider);
+        return keys[0]?.key || '';
     }
 
     private buildSnapshotFingerprintFromChanges(changes: { path: string; changeType: string; additions: number; deletions: number }[]): string {
@@ -661,13 +783,15 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         code: string;
         message: string;
         action?: { label: string; command: ErrorActionCommand };
+        diagnostics?: ComposeMessageError['diagnostics'];
     } {
         const err = error as ComposeMessageError;
         const message = error instanceof Error ? error.message : String(error);
         const code = err?.code || 'UNKNOWN_ERROR';
+        const diagnostics = this.buildDiagnostics(error, code, message);
 
         if (err?.action) {
-            return { code, message, action: err.action };
+            return { code, message, action: err.action, diagnostics };
         }
 
         if (code === 'ONLY_EXCLUDED_FILES') {
@@ -675,6 +799,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                 code,
                 message: 'All staged files are excluded by your privacy policy. Update exclude patterns or stage different files.',
                 action: { label: 'Refresh', command: 'refresh' },
+                diagnostics,
             };
         }
 
@@ -682,7 +807,8 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             return {
                 code: 'PRECHECK_MISSING_API_KEY',
                 message: 'API key is missing for the selected provider. Add a key in AI Controls and compose again.',
-                action: { label: 'Recompose', command: 'compose' },
+                action: { label: 'Test Connection', command: 'testConnection' },
+                diagnostics,
             };
         }
 
@@ -690,25 +816,72 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             return {
                 code: 'AUTH_ERROR',
                 message: 'Authentication failed for the selected provider. Verify your API key and model access.',
+                action: { label: 'Test Connection', command: 'testConnection' },
+                diagnostics,
             };
         }
 
         if (/429|rate limit|quota/i.test(message)) {
             return {
                 code: 'RATE_LIMIT',
-                message: 'Provider rate limit reached. Try again shortly or rotate to another key.',
+                message: 'Provider rate limit reached. Retry compose with backoff or rotate to another key.',
+                action: { label: 'Retry Compose', command: 'retryCompose' },
+                diagnostics,
             };
         }
 
-        if (/ENOTFOUND|ECONNREFUSED|network|timeout|timed out/i.test(message)) {
+        if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network|timeout|timed out|TLS|ssl/i.test(message)) {
+            const codeMatch =
+                /ENOTFOUND|EAI_AGAIN/i.test(message) ? 'DNS_ERROR' :
+                /ECONNREFUSED/i.test(message) ? 'CONNECTION_REFUSED' :
+                /TLS|ssl/i.test(message) ? 'TLS_ERROR' :
+                'NETWORK_ERROR';
+            const hint =
+                /ENOTFOUND|EAI_AGAIN/i.test(message) ? 'DNS lookup failed.' :
+                /ECONNREFUSED/i.test(message) ? 'The provider endpoint refused the connection.' :
+                /TLS|ssl/i.test(message) ? 'TLS or certificate negotiation failed.' :
+                'The request timed out or the network is unstable.';
             return {
-                code: 'NETWORK_ERROR',
-                message: 'Network or provider endpoint is unreachable. Check your connection and provider base URL.',
+                code: codeMatch,
+                message: `Network or provider endpoint is unreachable. ${hint}`,
                 action: { label: 'Refresh', command: 'refresh' },
+                diagnostics,
             };
         }
 
-        return { code, message };
+        return { code, message, diagnostics };
+    }
+
+    private buildDiagnostics(
+        error: unknown,
+        code: string,
+        message: string
+    ): ComposeMessageError['diagnostics'] {
+        const diagnostics: ComposeMessageError['diagnostics'] = {
+            provider: this.getConfigLoader().getConfig().provider || 'unknown',
+            code,
+            message,
+        };
+
+        if (axios.isAxiosError(error)) {
+            diagnostics.status = error.response?.status;
+            diagnostics.requestId = String(
+                error.response?.headers?.['x-request-id'] ||
+                error.response?.headers?.['request-id'] ||
+                error.response?.headers?.['x-correlation-id'] ||
+                ''
+            ) || undefined;
+            diagnostics.details = typeof error.response?.data === 'string'
+                ? error.response.data
+                : error.response?.data?.error?.message || error.response?.data?.message;
+            diagnostics.hint = error.response?.status === 429
+                ? 'Wait and retry, or rotate to a different key.'
+                : error.response?.status && error.response.status >= 500
+                    ? 'The provider service is temporarily failing.'
+                    : undefined;
+        }
+
+        return diagnostics;
     }
 }
 

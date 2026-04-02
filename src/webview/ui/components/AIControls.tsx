@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
+import { getProviderDisplayName, getProviderModelOptions, type ProviderName } from '../../../utils/constant';
 
-const PROVIDERS = [
-    { value: 'openai', label: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },
-    { value: 'anthropic', label: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-3-haiku-20240307'] },
-    { value: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'] },
-    { value: 'kimi', label: 'Kimi (Moonshot)', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
-    { value: 'ollama', label: 'Ollama (Local)', models: [] },
-];
+const PROVIDER_VALUES = ['openai', 'anthropic', 'groq', 'gemini', 'kimi', 'ollama'] as const satisfies readonly ProviderName[];
+
+const PROVIDERS: { value: ProviderName; label: string; models: readonly string[] }[] = PROVIDER_VALUES.map((value) => ({
+    value,
+    label: getProviderDisplayName(value),
+    models: getProviderModelOptions(value),
+}));
 
 export default function AIControls() {
-    const { providerConfig, setProviderConfig, isLoading, savedKeys, showKeyInput, setShowKeyInput, ollamaModels, setOllamaModels } = useCommitStore();
+    const {
+        providerConfig,
+        setProviderConfig,
+        isLoading,
+        savedKeys,
+        showKeyInput,
+        setShowKeyInput,
+        ollamaModels,
+        setOllamaModels,
+        privacyPreview,
+        connectionTest,
+    } = useCommitStore();
     const { loadKeys, saveKey, removeKey, resetKeys, postMessage, saveProviderPreference } = useVSCodeAPI();
     const [newKey, setNewKey] = useState('');
     const [newKeyLabel, setNewKeyLabel] = useState('');
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [testingConnection, setTestingConnection] = useState(false);
 
     const selectedProvider = PROVIDERS.find(p => p.value === providerConfig.provider) || PROVIDERS[0];
     const isLocal = providerConfig.provider === 'ollama';
@@ -81,10 +94,25 @@ export default function AIControls() {
         }
     };
 
+    const handleTestConnection = () => {
+        setTestingConnection(true);
+        postMessage('testProviderConnection', { providerConfig });
+        window.setTimeout(() => setTestingConnection(false), 1500);
+    };
+
     return (
         <div className="ai-controls">
             <div className="ai-controls-header">
                 <span className="section-label">⚡ AI Provider</span>
+                <button
+                    className="btn btn-sm"
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={isLoading || testingConnection}
+                    title="Validate provider access and model availability"
+                >
+                    {testingConnection ? 'Testing…' : 'Test Connection'}
+                </button>
                 <button
                     className="btn btn-icon ai-settings-toggle"
                     type="button"
@@ -104,7 +132,35 @@ export default function AIControls() {
                 <span className="ai-provider-meta">
                     Model: {providerConfig.model || 'Default'}
                 </span>
+                {connectionTest && connectionTest.provider === providerConfig.provider && (
+                    <span className="ai-provider-meta">
+                        Connection: {connectionTest.available ? 'ready' : 'blocked'} • Model: {connectionTest.modelAvailable ? 'available' : 'unavailable'}
+                    </span>
+                )}
             </div>
+
+            {privacyPreview && (
+                <div className="api-key-empty-state">
+                    <span className="ai-provider-meta">
+                        Privacy preview: {privacyPreview.excludedCount} excluded, {privacyPreview.redactedCount} redacted.
+                    </span>
+                    {privacyPreview.invalidExcludePatterns.length > 0 && (
+                        <span className="ai-provider-meta">
+                            Invalid exclude patterns: {privacyPreview.invalidExcludePatterns.join(', ')}
+                        </span>
+                    )}
+                    {privacyPreview.invalidRedactPatterns.length > 0 && (
+                        <span className="ai-provider-meta">
+                            Invalid redact patterns: {privacyPreview.invalidRedactPatterns.join(', ')}
+                        </span>
+                    )}
+                    {privacyPreview.warnings.length > 0 && (
+                        <span className="ai-provider-meta">
+                            {privacyPreview.warnings.join(' ')}
+                        </span>
+                    )}
+                </div>
+            )}
 
             {!settingsOpen && (
                 <div className="ai-collapsed-note">

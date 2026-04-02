@@ -31,7 +31,7 @@ function getVSCodeAPI(): VSCodeAPI {
  */
 export function useVSCodeAPI() {
     const api = getVSCodeAPI();
-    const { setSavedKeys, setOllamaModels } = useCommitStore();
+    const { setSavedKeys, setOllamaModels, setPrivacyPreview, setConnectionTest, setDiagnostics } = useCommitStore();
 
     const postMessage = useCallback((command: string, data?: any) => {
         api.postMessage({ command, ...data });
@@ -60,11 +60,23 @@ export function useVSCodeAPI() {
                 setOllamaModels(msg.models);
             }
 
+            if (msg.command === 'privacyPreviewLoaded' && msg.preview) {
+                setPrivacyPreview(msg.preview);
+            }
+
+            if (msg.command === 'connectionTested' && msg.result) {
+                setConnectionTest(msg.result);
+            }
+
+            if (msg.command === 'diagnostics' && msg.diagnostics) {
+                setDiagnostics(msg.diagnostics);
+            }
+
             handler(msg);
         };
         window.addEventListener('message', listener);
         return () => window.removeEventListener('message', listener);
-    }, [setSavedKeys, setOllamaModels]);
+    }, [setSavedKeys, setOllamaModels, setPrivacyPreview, setConnectionTest, setDiagnostics]);
 
     // Helper functions for key management
     const loadKeys = useCallback((provider: string) => {

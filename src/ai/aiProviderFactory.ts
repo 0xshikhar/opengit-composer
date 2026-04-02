@@ -1,9 +1,11 @@
 import { AIProvider, AIProviderConfig } from './aiProvider';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
+import { GroqProvider } from './providers/groq';
 import { GeminiProvider } from './providers/gemini';
 import { KimiProvider } from './providers/kimi';
 import { OllamaProvider } from './providers/ollama';
+import { ProviderName, getProviderDefaultModel } from '../utils/constant';
 
 export class AIProviderFactory {
     static create(providerName: string, config: AIProviderConfig): AIProvider {
@@ -12,6 +14,9 @@ export class AIProviderFactory {
                 return new OpenAIProvider(config);
             case 'anthropic':
                 return new AnthropicProvider(config);
+            case 'groq':
+                return new GroqProvider(config);
+            case 'google':
             case 'gemini':
                 return new GeminiProvider(config);
             case 'kimi':
@@ -24,17 +29,10 @@ export class AIProviderFactory {
     }
 
     static getSupportedProviders(): string[] {
-        return ['openai', 'anthropic', 'gemini', 'kimi', 'ollama'];
+        return ['openai', 'anthropic', 'groq', 'gemini', 'google', 'kimi', 'ollama'];
     }
 
     static getDefaultModel(providerName: string): string {
-        switch (providerName) {
-            case 'openai': return 'gpt-4o';
-            case 'anthropic': return 'claude-sonnet-4-20250514';
-            case 'gemini': return 'gemini-2.5-flash';
-            case 'kimi': return 'moonshot-v1-8k';
-            case 'ollama': return 'llama3.2';
-            default: return '';
-        }
+        return getProviderDefaultModel(providerName as ProviderName);
     }
 }

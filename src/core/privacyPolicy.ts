@@ -5,10 +5,19 @@ export interface PrivacyPolicyConfig {
     redactPatterns: string[];
 }
 
+export interface PrivacyPolicyWarning {
+    kind: 'invalid-exclude-pattern' | 'invalid-redact-pattern';
+    pattern: string;
+    message: string;
+}
+
 export interface PrivacyPolicyResult {
     changes: FileChange[];
     excludedPaths: string[];
     redactedMatches: number;
+    invalidExcludePatterns: string[];
+    invalidRedactPatterns: string[];
+    warnings: PrivacyPolicyWarning[];
 }
 
 function normalizePath(input: string): string {
@@ -16,41 +25,46 @@ function normalizePath(input: string): string {
 }
 
 function globToRegExp(pattern: string): RegExp {
-    const escaped = pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*\*/g, '::DOUBLE_STAR::')
-        .replace(/\*/g, '[^/]*')
-        .replace(/::DOUBLE_STAR::/g, '.*')
-        .replace(/\?/g, '.');
-    return new RegExp(`^${escaped}$`);
-}
-
-function matchesAnyPattern(path: string, patterns: string[]): boolean {
-    if (!patterns.length) return false;
-    const normalized = normalizePath(path);
-    return patterns.some(pattern => {
-        const trimmed = pattern.trim();
-        if (!trimmed) return false;
-        try {
-            return globToRegExp(trimmed).test(normalized);
-        } catch {
-            return false;
+    let output = '^';
+    for (let i = 0; i < pattern.length; i++) {
+        const char = pattern[i];
+        if (char === '*') {
+            if (pattern[i + 1] === '*') {
+                output += '.*';
+                i++;
+            } else {
+                output += '[^/]*';
+            }
+            continue;
         }
-    });
+        if (char === '?') {
+            output += '[^/]';
+            continue;
+        }
+        if ('\\^$+?.()|{}[]'.includes(char)) {
+            output += `\\${char}`;
+            continue;
+        }
+        output += char;
+    }
+    output += '$';
+    return new RegExp(output);
 }
 
-function compileRedactionPatterns(patterns: string[]): RegExp[] {
+function compileRedactionPatterns(patterns: string[]): { patterns: RegExp[]; invalidPatterns: string[] } {
     const compiled: RegExp[] = [];
+    const invalidPatterns: string[] = [];
     for (const rawPattern of patterns) {
         const pattern = rawPattern.trim();
         if (!pattern) continue;
         try {
             compiled.push(new RegExp(pattern, 'g'));
         } catch {
+            invalidPatterns.push(pattern);
             continue;
         }
     }
-    return compiled;
+    return { patterns: compiled, invalidPatterns };
 }
 
 function redactDiff(diff: string, patterns: RegExp[]): { diff: string; matches: number } {
@@ -78,14 +92,34 @@ export function applyPrivacyPolicyToChanges(
     config: PrivacyPolicyConfig
 ): PrivacyPolicyResult {
     const excludePatterns = config.excludePatterns || [];
-    const redactionRegex = compileRedactionPatterns(config.redactPatterns || []);
+    const redactionCompilation = compileRedactionPatterns(config.redactPatterns || []);
+    const redactionRegex = redactionCompilation.patterns;
 
     const filtered: FileChange[] = [];
     const excludedPaths: string[] = [];
     let redactedMatches = 0;
+    const invalidExcludePatterns: string[] = [];
+    const warnings: PrivacyPolicyWarning[] = [];
 
     for (const file of changes) {
-        if (matchesAnyPattern(file.path, excludePatterns)) {
+        const normalizedPath = normalizePath(file.path);
+        const matchedExclude = excludePatterns.some(pattern => {
+            const trimmed = pattern.trim();
+            if (!trimmed) return false;
+            try {
+                return globToRegExp(trimmed).test(normalizedPath);
+            } catch {
+                invalidExcludePatterns.push(trimmed);
+                warnings.push({
+                    kind: 'invalid-exclude-pattern',
+                    pattern: trimmed,
+                    message: `Ignoring invalid exclude pattern "${trimmed}".`,
+                });
+                return false;
+            }
+        });
+
+        if (matchedExclude) {
             excludedPaths.push(file.path);
             continue;
         }
@@ -102,5 +136,15 @@ export function applyPrivacyPolicyToChanges(
         changes: filtered,
         excludedPaths,
         redactedMatches,
+        invalidExcludePatterns: [...new Set(invalidExcludePatterns)],
+        invalidRedactPatterns: redactionCompilation.invalidPatterns,
+        warnings: [
+            ...warnings,
+            ...redactionCompilation.invalidPatterns.map(pattern => ({
+                kind: 'invalid-redact-pattern' as const,
+                pattern,
+                message: `Ignoring invalid redact pattern "${pattern}".`,
+            })),
+        ],
     };
 }

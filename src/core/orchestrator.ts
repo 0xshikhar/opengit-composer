@@ -31,6 +31,11 @@ export interface ComposeMeta {
     fallbackReason?: string;
     excludedFileCount: number;
     redactedMatchCount: number;
+    invalidExcludePatterns?: string[];
+    invalidRedactPatterns?: string[];
+    parserFallbackStrategy?: string;
+    parserFallbackDetails?: string;
+    parserQualityScore?: number;
 }
 
 export interface ComposeResult {
@@ -97,7 +102,7 @@ export class Orchestrator {
             drafts: DraftCommit[];
             reasoning?: string;
             summary?: string;
-            meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason'>;
+            meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
         };
         if (providerConfig) {
             const resolvedProviderConfig = this.resolveProviderConfig(providerConfig, config);
@@ -127,6 +132,11 @@ export class Orchestrator {
             fallbackReason: composeResult.meta?.fallbackReason,
             excludedFileCount: privacyResult.excludedPaths.length,
             redactedMatchCount: privacyResult.redactedMatches,
+            invalidExcludePatterns: privacyResult.invalidExcludePatterns,
+            invalidRedactPatterns: privacyResult.invalidRedactPatterns,
+            parserFallbackStrategy: composeResult.meta?.parserFallbackStrategy,
+            parserFallbackDetails: composeResult.meta?.parserFallbackDetails,
+            parserQualityScore: composeResult.meta?.parserQualityScore,
         };
 
         return {
@@ -192,7 +202,7 @@ export class Orchestrator {
         drafts: DraftCommit[];
         reasoning?: string;
         summary?: string;
-        meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason'>;
+        meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
     }> {
         const aiConfig: AIProviderConfig = {
             apiKey: providerConfig.apiKey,
@@ -247,6 +257,9 @@ export class Orchestrator {
                     fallbackReason: result.parserMeta?.usedFallback
                         ? `parser:${result.parserMeta.strategy}`
                         : undefined,
+                    parserFallbackStrategy: result.parserMeta?.usedFallback ? result.parserMeta.strategy : undefined,
+                    parserFallbackDetails: result.parserMeta?.details,
+                    parserQualityScore: result.parserMeta?.qualityScore,
                 },
             };
         } catch (error) {

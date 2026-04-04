@@ -1,8 +1,14 @@
 import { useCallback } from 'react';
 import { useCommitStore } from '../store/commitStore';
+import {
+    HostToWebviewMessage,
+    isHostToWebviewMessage,
+    WebviewToHostCommand,
+    WebviewToHostMessage,
+} from '../../../types/messages';
 
 interface VSCodeAPI {
-    postMessage: (msg: any) => void;
+    postMessage: (msg: WebviewToHostMessage) => void;
     getState: () => any;
     setState: (state: any) => void;
 }
@@ -33,46 +39,50 @@ export function useVSCodeAPI() {
     const api = getVSCodeAPI();
     const { setSavedKeys, setOllamaModels, setPrivacyPreview, setConnectionTest, setDiagnostics } = useCommitStore();
 
-    const postMessage = useCallback((command: string, data?: any) => {
-        api.postMessage({ command, ...data });
+    const postMessage = useCallback((command: WebviewToHostCommand, data?: Record<string, unknown>) => {
+        api.postMessage({ command, ...(data || {}) });
     }, [api]);
 
-    const onMessage = useCallback((handler: (message: any) => void) => {
+    const onMessage = useCallback((handler: (message: HostToWebviewMessage) => void) => {
         const listener = (event: MessageEvent) => {
             const msg = event.data;
+            if (!isHostToWebviewMessage(msg)) {
+                return;
+            }
+            const payload = msg as HostToWebviewMessage & Record<string, any>;
 
             // Handle key management messages automatically
-            if (msg.command === 'keysLoaded' && msg.keys) {
-                setSavedKeys(msg.provider, msg.keys);
+            if (payload.command === 'keysLoaded' && payload.keys) {
+                setSavedKeys(payload.provider, payload.keys);
             }
-            if (msg.command === 'keySaved' && msg.keys) {
-                setSavedKeys(msg.provider, msg.keys);
+            if (payload.command === 'keySaved' && payload.keys) {
+                setSavedKeys(payload.provider, payload.keys);
             }
-            if (msg.command === 'keyRemoved' && msg.keys) {
-                setSavedKeys(msg.provider, msg.keys);
+            if (payload.command === 'keyRemoved' && payload.keys) {
+                setSavedKeys(payload.provider, payload.keys);
             }
-            if (msg.command === 'keysReset') {
-                setSavedKeys(msg.provider, []);
+            if (payload.command === 'keysReset') {
+                setSavedKeys(payload.provider, []);
             }
 
             // Handle Ollama models
-            if (msg.command === 'ollamaModelsLoaded' && msg.models) {
-                setOllamaModels(msg.models);
+            if (payload.command === 'ollamaModelsLoaded' && payload.models) {
+                setOllamaModels(payload.models);
             }
 
-            if (msg.command === 'privacyPreviewLoaded' && msg.preview) {
-                setPrivacyPreview(msg.preview);
+            if (payload.command === 'privacyPreviewLoaded' && payload.preview) {
+                setPrivacyPreview(payload.preview);
             }
 
-            if (msg.command === 'connectionTested' && msg.result) {
-                setConnectionTest(msg.result);
+            if (payload.command === 'connectionTested' && payload.result) {
+                setConnectionTest(payload.result);
             }
 
-            if (msg.command === 'diagnostics' && msg.diagnostics) {
-                setDiagnostics(msg.diagnostics);
+            if (payload.command === 'diagnostics' && payload.diagnostics) {
+                setDiagnostics(payload.diagnostics);
             }
 
-            handler(msg);
+            handler(payload);
         };
         window.addEventListener('message', listener);
         return () => window.removeEventListener('message', listener);

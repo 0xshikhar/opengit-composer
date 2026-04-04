@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ComposerErrorAction, ComposerErrorCode } from '../../../types/messages';
 
 // Types duplicated for webview context (no vscode imports)
 export interface FileChange {
@@ -69,7 +70,7 @@ export interface PrivacyPreview {
 
 export interface ProviderDiagnostics {
     provider: string;
-    code: string;
+    code: ComposerErrorCode;
     message: string;
     status?: number;
     requestId?: string;
@@ -88,7 +89,7 @@ export interface ConnectionTestResult {
 
 export interface ErrorAction {
     label: string;
-    command: 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection';
+    command: ComposerErrorAction['command'];
 }
 
 interface CommitStoreState {

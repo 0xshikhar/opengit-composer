@@ -5,6 +5,7 @@ import { AIProvider } from '../ai/aiProvider';
 import { CommitGroup } from '../types/commits';
 import { FileChange } from '../types/git';
 import { Logger } from '../utils/logger';
+import { isWebviewToHostMessage, WebviewToHostMessage } from '../types/messages';
 
 export class CommitComposerPanel {
     public static currentPanel: CommitComposerPanel | undefined;
@@ -117,18 +118,24 @@ export class CommitComposerPanel {
 
     private _setWebviewMessageListener() {
         this._panel.webview.onDidReceiveMessage(
-            async (message) => {
+            async (message: WebviewToHostMessage | unknown) => {
+                if (!isWebviewToHostMessage(message)) {
+                    Logger.warn('CommitComposerPanel: Ignoring unknown webview message', { message });
+                    return;
+                }
+
                 Logger.debug('CommitComposerPanel: Received message from webview', { command: message.command });
 
-                switch (message.command) { // Using 'command' instead of 'type' to be consistent if needed, but 'type' is fine.
+                const payload = message as WebviewToHostMessage & Record<string, any>;
+                switch (payload.command) {
                     case 'loadData':
                         await this.loadChanges();
                         break;
                     case 'generate':
-                        await this.handleGenerate(message.providerConfig);
+                        await this.handleGenerate(payload.providerConfig);
                         break;
                     case 'commit':
-                        await this.handleCommit(message.group);
+                        await this.handleCommit(payload.group as CommitGroup);
                         break;
                 }
             },

@@ -14,6 +14,13 @@ import { Logger } from '../utils/logger';
 import { OllamaProvider } from '../ai/providers/ollama';
 import { applyPrivacyPolicyToChanges } from '../core/privacyPolicy';
 import { AIProviderFactory } from '../ai/aiProviderFactory';
+import {
+    ComposerDiagnostics,
+    ComposerErrorAction,
+    ComposerErrorCode,
+    isWebviewToHostMessage,
+    WebviewToHostMessage,
+} from '../types/messages';
 
 type WebviewSource = 'sidebar' | 'panel';
 
@@ -24,24 +31,10 @@ interface WebviewBootstrapPayload {
     logoUri?: string;
 }
 
-type ErrorActionCommand = 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection';
-
 interface ComposeMessageError extends Error {
-    code?: string;
-    action?: {
-        label: string;
-        command: ErrorActionCommand;
-    };
-    diagnostics?: {
-        provider: string;
-        code: string;
-        message: string;
-        status?: number;
-        requestId?: string;
-        model?: string;
-        details?: string;
-        hint?: string;
-    };
+    code?: ComposerErrorCode;
+    action?: ComposerErrorAction;
+    diagnostics?: ComposerDiagnostics;
 }
 
 export class CommitComposerProvider implements vscode.WebviewViewProvider {
@@ -174,8 +167,12 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     }
 
     private _setWebviewMessageListener(webview: vscode.Webview, source: WebviewSource) {
-        webview.onDidReceiveMessage(async (message: { command?: string; [key: string]: unknown }) => {
-            const command = typeof message.command === 'string' ? message.command : '';
+        webview.onDidReceiveMessage(async (message: WebviewToHostMessage | unknown) => {
+            if (!isWebviewToHostMessage(message)) {
+                Logger.warn('CommitComposerProvider: Ignoring unknown webview message', { source, message });
+                return;
+            }
+            const command = message.command;
             Logger.debug('CommitComposerProvider: Message received', { source, command });
 
             try {
@@ -780,9 +777,9 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     }
 
     private mapErrorToMessage(error: unknown): {
-        code: string;
+        code: ComposerErrorCode;
         message: string;
-        action?: { label: string; command: ErrorActionCommand };
+        action?: ComposerErrorAction;
         diagnostics?: ComposeMessageError['diagnostics'];
     } {
         const err = error as ComposeMessageError;
@@ -831,7 +828,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         }
 
         if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network|timeout|timed out|TLS|ssl/i.test(message)) {
-            const codeMatch =
+            const codeMatch: ComposerErrorCode =
                 /ENOTFOUND|EAI_AGAIN/i.test(message) ? 'DNS_ERROR' :
                 /ECONNREFUSED/i.test(message) ? 'CONNECTION_REFUSED' :
                 /TLS|ssl/i.test(message) ? 'TLS_ERROR' :
@@ -854,7 +851,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
     private buildDiagnostics(
         error: unknown,
-        code: string,
+        code: ComposerErrorCode,
         message: string
     ): ComposeMessageError['diagnostics'] {
         const diagnostics: ComposeMessageError['diagnostics'] = {

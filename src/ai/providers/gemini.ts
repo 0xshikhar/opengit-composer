@@ -98,7 +98,45 @@ export class GeminiProvider extends AIProvider {
     }
 
     protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
-        const model = this.config.model || getProviderDefaultModel('gemini');
+        const primaryModel = this.config.model || getProviderDefaultModel('gemini');
+        const modelCandidates = this.buildModelCandidates(primaryModel);
+        let lastError: unknown;
+
+        Logger.debug('GeminiProvider: Request model candidates', {
+            primaryModel,
+            mode,
+            promptLength: prompt.length,
+            candidates: modelCandidates,
+        });
+
+        for (let index = 0; index < modelCandidates.length; index++) {
+            const candidate = modelCandidates[index];
+            try {
+                return await this.requestWithModel(candidate, prompt, mode);
+            } catch (error) {
+                lastError = error;
+                if (this.shouldFailoverToNextModel(error) && index < modelCandidates.length - 1) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    Logger.warn('GeminiProvider: Model request failed; trying next fallback model', {
+                        failedModel: candidate,
+                        nextModel: modelCandidates[index + 1],
+                        status: axios.isAxiosError(error) ? error.response?.status : undefined,
+                        code: axios.isAxiosError(error) ? error.code : undefined,
+                        message,
+                    });
+                    continue;
+                }
+
+                Logger.error('GeminiProvider: API request failed', error);
+                throw buildProviderError('Gemini API Error', error);
+            }
+        }
+
+        Logger.error('GeminiProvider: All candidate models failed', lastError);
+        throw buildProviderError('Gemini API Error', lastError);
+    }
+
+    private async requestWithModel(model: string, prompt: string, mode: 'json' | 'text'): Promise<any> {
         const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
 
         const executeRequest = async (useSchema: boolean): Promise<any> => {
@@ -131,7 +169,7 @@ export class GeminiProvider extends AIProvider {
                 3
             );
 
-            Logger.debug('GeminiProvider: API response received', { status: response.status });
+            Logger.debug('GeminiProvider: API response received', { model, status: response.status });
             return response.data;
         };
 
@@ -141,7 +179,16 @@ export class GeminiProvider extends AIProvider {
                 mode,
                 promptLength: prompt.length,
             });
-            return await executeRequest(true);
+            const data = await executeRequest(true);
+            this.requestMeta = {
+                requestedModel: normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
+                usedModel: normalizeModelId(model),
+                failover: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
+                failoverReason: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))
+                    ? `Gemini switched from ${normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))} to ${normalizeModelId(model)} after overload or availability errors.`
+                    : undefined,
+            };
+            return data;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             const isSchemaOrFormatError =
@@ -154,16 +201,40 @@ export class GeminiProvider extends AIProvider {
                     message,
                 });
                 try {
-                    return await executeRequest(false);
+                    const data = await executeRequest(false);
+                    this.requestMeta = {
+                        requestedModel: normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
+                        usedModel: normalizeModelId(model),
+                        failover: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
+                        failoverReason: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))
+                            ? `Gemini switched from ${normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))} to ${normalizeModelId(model)} after overload or request-shape errors.`
+                            : undefined,
+                    };
+                    return data;
                 } catch (retryError) {
-                    Logger.error('GeminiProvider: API request failed after schema fallback', retryError);
-                    throw buildProviderError('Gemini API Error', retryError);
+                    throw retryError;
                 }
             }
 
-            Logger.error('GeminiProvider: API request failed', error);
-            throw buildProviderError('Gemini API Error', error);
+            throw error;
         }
+    }
+
+    private buildModelCandidates(primaryModel: string): string[] {
+        const normalizedPrimary = normalizeModelId(primaryModel);
+        const catalogModels = getProviderModelOptions('gemini').map(model => normalizeModelId(model));
+        const candidates = [normalizedPrimary, ...catalogModels];
+        return [...new Set(candidates.filter(Boolean))];
+    }
+
+    private shouldFailoverToNextModel(error: unknown): boolean {
+        if (!axios.isAxiosError(error)) {
+            return false;
+        }
+
+        const status = error.response?.status;
+        const message = `${error.message || ''} ${typeof error.response?.data === 'string' ? error.response.data : JSON.stringify(error.response?.data || {})}`;
+        return status === 503 || status === 429 || /high demand|temporarily unavailable|quota/i.test(message);
     }
 
     private extractTextContent(response: any): string {

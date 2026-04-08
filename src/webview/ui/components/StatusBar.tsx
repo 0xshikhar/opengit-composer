@@ -58,6 +58,8 @@ export default function StatusBar() {
         const avgConfidence = Math.round(
             drafts.reduce((acc, d) => acc + d.confidence, 0) / total
         );
+        const modelFailoverActive = composeMeta?.aiModelFailover;
+        const aiRequestFailed = composeMeta?.fallbackReason === 'ai_request_failed' || !!composeMeta?.aiRequestError;
 
         return (
             <div className="status-bar status-ready">
@@ -74,6 +76,22 @@ export default function StatusBar() {
                 {composeMeta?.usedFallback && (
                     <span className="status-fallback-badge" title={composeMeta.fallbackReason || 'Fallback mode'}>
                         fallback
+                    </span>
+                )}
+                {aiRequestFailed && (
+                    <span
+                        className="status-fallback-badge"
+                        title={composeMeta?.aiRequestError || 'AI request failed'}
+                    >
+                        ai request failed
+                    </span>
+                )}
+                {modelFailoverActive && (
+                    <span
+                        className="status-fallback-badge"
+                        title={`Model failover: ${composeMeta?.aiRequestedModel || 'primary'} → ${composeMeta?.aiUsedModel || 'fallback'}`}
+                    >
+                        model failover
                     </span>
                 )}
                 {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (

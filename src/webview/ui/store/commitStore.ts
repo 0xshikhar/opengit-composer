@@ -51,6 +51,13 @@ export interface ComposeSnapshot {
 export interface ComposeMeta {
     usedFallback: boolean;
     fallbackReason?: string;
+    aiRequestedModel?: string;
+    aiUsedModel?: string;
+    aiModelFailover?: boolean;
+    aiModelFailoverReason?: string;
+    aiRequestError?: string;
+    aiRequestCode?: string;
+    aiRequestStatus?: number;
     excludedFileCount: number;
     redactedMatchCount: number;
     invalidExcludePatterns?: string[];

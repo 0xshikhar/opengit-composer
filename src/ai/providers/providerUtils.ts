@@ -29,6 +29,24 @@ function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function parseRetryAfter(headerValue: unknown): number | undefined {
+    if (typeof headerValue !== 'string') {
+        return undefined;
+    }
+
+    const seconds = Number(headerValue);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.floor(seconds * 1000);
+    }
+
+    const retryDate = Date.parse(headerValue);
+    if (!Number.isNaN(retryDate)) {
+        return Math.max(0, retryDate - Date.now());
+    }
+
+    return undefined;
+}
+
 export function isRetriableError(error: unknown): boolean {
     if (!axios.isAxiosError(error)) return false;
 
@@ -66,15 +84,20 @@ export async function requestWithRetry<T>(
             }
 
             const backoffMs = Math.min(4000, 400 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 120);
+            const retryAfterMs = axios.isAxiosError(error)
+                ? parseRetryAfter(error.response?.headers?.['retry-after'])
+                : undefined;
+            const delayMs = typeof retryAfterMs === 'number' ? Math.max(backoffMs, retryAfterMs) : backoffMs;
             Logger.warn(`${label}: transient AI request failure; retrying`, {
                 attempt,
                 maxAttempts,
-                backoffMs,
+                backoffMs: delayMs,
                 code: axios.isAxiosError(error) ? error.code : undefined,
                 status: axios.isAxiosError(error) ? error.response?.status : undefined,
+                retryAfter: axios.isAxiosError(error) ? error.response?.headers?.['retry-after'] : undefined,
                 message: error instanceof Error ? error.message : String(error),
             });
-            await sleep(backoffMs);
+            await sleep(delayMs);
         }
     }
 

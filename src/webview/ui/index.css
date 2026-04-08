@@ -973,6 +973,42 @@ body {
   color: #f0883e;
 }
 
+.compose-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(240, 136, 62, 0.35);
+  background: rgba(240, 136, 62, 0.10);
+}
+
+.compose-alert-warning {
+  color: #ffbe7a;
+}
+
+.compose-alert-icon {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.compose-alert-copy {
+  flex: 1;
+}
+
+.compose-alert-copy strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--vscode-foreground, #f3f3f3);
+}
+
+.compose-alert-copy p {
+  margin: 0;
+  color: var(--vscode-descriptionForeground, #9a9a9a);
+}
+
 .compose-header-actions {
   display: flex;
   gap: 6px;

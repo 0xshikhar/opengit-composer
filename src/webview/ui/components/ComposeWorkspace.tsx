@@ -64,6 +64,19 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
     };
 
     const pendingCount = drafts.filter(draft => draft.state !== 'committed').length;
+    const modelFailover = composeMeta?.aiModelFailover;
+    const requestedModel = composeMeta?.aiRequestedModel;
+    const usedModel = composeMeta?.aiUsedModel;
+    const aiRequestFailed = composeMeta?.fallbackReason === 'ai_request_failed' || !!composeMeta?.aiRequestError;
+    const aiRequestHeadline = aiRequestFailed
+        ? [
+            `AI request failed${requestedModel ? ` for ${requestedModel}` : ''}`,
+            composeMeta?.aiRequestStatus ? `(${composeMeta.aiRequestStatus}${composeMeta.aiRequestCode ? ` ${composeMeta.aiRequestCode}` : ''})` : composeMeta?.aiRequestCode ? `(${composeMeta.aiRequestCode})` : '',
+        ].filter(Boolean).join(' ')
+        : '';
+    const aiRequestBody = composeMeta?.aiRequestError
+        ? composeMeta.aiRequestError.replace(/^Gemini API Error:\s*/i, '')
+        : '';
 
     if (drafts.length === 0) {
         return (
@@ -84,7 +97,27 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
             <header className="compose-header">
                 <div>
                     <h3 className="compose-title">Generated Commits</h3>
+                    {aiRequestFailed && (
+                        <div className="compose-alert compose-alert-warning" role="alert">
+                            <div className="compose-alert-icon">⚠️</div>
+                            <div className="compose-alert-copy">
+                                <strong>{aiRequestHeadline || 'AI request failed'}</strong>
+                                {aiRequestBody && (
+                                    <p>{aiRequestBody}</p>
+                                )}
+                                {!aiRequestBody && (
+                                    <p>Falling back to heuristic draft mode.</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     {summary && <p className="compose-summary">{summary}</p>}
+                    {modelFailover && (
+                        <p className="compose-summary compose-summary-warning">
+                            AI model failover active: {requestedModel || 'primary model'} switched to {usedModel || 'a fallback model'}.
+                            {composeMeta?.aiModelFailoverReason ? ` ${composeMeta.aiModelFailoverReason}` : ''}
+                        </p>
+                    )}
                     {composeMeta?.usedFallback && (
                         <p className="compose-summary compose-summary-warning">
                             Fallback mode active ({composeMeta.fallbackReason || 'AI fallback'}).

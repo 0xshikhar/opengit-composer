@@ -29,6 +29,10 @@ export interface ComposeSnapshot {
 export interface ComposeMeta {
     usedFallback: boolean;
     fallbackReason?: string;
+    aiRequestedModel?: string;
+    aiUsedModel?: string;
+    aiModelFailover?: boolean;
+    aiModelFailoverReason?: string;
     excludedFileCount: number;
     redactedMatchCount: number;
     invalidExcludePatterns?: string[];
@@ -102,7 +106,18 @@ export class Orchestrator {
             drafts: DraftCommit[];
             reasoning?: string;
             summary?: string;
-            meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
+            meta?: Pick<
+                ComposeMeta,
+                | 'usedFallback'
+                | 'fallbackReason'
+                | 'aiRequestedModel'
+                | 'aiUsedModel'
+                | 'aiModelFailover'
+                | 'aiModelFailoverReason'
+                | 'parserFallbackStrategy'
+                | 'parserFallbackDetails'
+                | 'parserQualityScore'
+            >;
         };
         if (providerConfig) {
             const resolvedProviderConfig = this.resolveProviderConfig(providerConfig, config);
@@ -202,7 +217,18 @@ export class Orchestrator {
         drafts: DraftCommit[];
         reasoning?: string;
         summary?: string;
-        meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
+        meta?: Pick<
+            ComposeMeta,
+            | 'usedFallback'
+            | 'fallbackReason'
+            | 'aiRequestedModel'
+            | 'aiUsedModel'
+            | 'aiModelFailover'
+            | 'aiModelFailoverReason'
+            | 'parserFallbackStrategy'
+            | 'parserFallbackDetails'
+            | 'parserQualityScore'
+        >;
     }> {
         const aiConfig: AIProviderConfig = {
             apiKey: providerConfig.apiKey,
@@ -233,6 +259,15 @@ export class Orchestrator {
                 });
             }
 
+            const requestMeta = this.aiProvider?.consumeRequestMeta();
+            if (requestMeta?.failover) {
+                Logger.warn('Orchestrator: AI provider model failover occurred', {
+                    provider: providerConfig.provider,
+                    requestedModel: requestMeta.requestedModel,
+                    usedModel: requestMeta.usedModel,
+                    reason: requestMeta.failoverReason,
+                });
+            }
             const drafts: DraftCommit[] = result.groups.map(group => ({
                 id: group.id || uuidv4(),
                 message: this.normalizeCommitMessage(group.message),
@@ -257,6 +292,10 @@ export class Orchestrator {
                     fallbackReason: result.parserMeta?.usedFallback
                         ? `parser:${result.parserMeta.strategy}`
                         : undefined,
+                    aiRequestedModel: requestMeta?.requestedModel,
+                    aiUsedModel: requestMeta?.usedModel,
+                    aiModelFailover: requestMeta?.failover,
+                    aiModelFailoverReason: requestMeta?.failoverReason,
                     parserFallbackStrategy: result.parserMeta?.usedFallback ? result.parserMeta.strategy : undefined,
                     parserFallbackDetails: result.parserMeta?.details,
                     parserQualityScore: result.parserMeta?.qualityScore,

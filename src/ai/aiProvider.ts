@@ -14,6 +14,12 @@ export interface AIResponse {
     summary?: string;
     reasoning?: string;
     tokensUsed?: number;
+    providerMeta?: {
+        requestedModel?: string;
+        usedModel?: string;
+        failover?: boolean;
+        failoverReason?: string;
+    };
     parserMeta?: {
         usedFallback: boolean;
         strategy: string;
@@ -32,6 +38,7 @@ export interface AIAnalyzeOptions {
 
 export abstract class AIProvider {
     protected config: AIProviderConfig;
+    protected requestMeta: AIResponse['providerMeta'] | undefined;
 
     constructor(config: AIProviderConfig) {
         this.config = config;
@@ -42,6 +49,12 @@ export abstract class AIProvider {
     abstract validateApiKey(): Promise<boolean>;
     async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
         return { available: true };
+    }
+
+    consumeRequestMeta(): AIResponse['providerMeta'] | undefined {
+        const meta = this.requestMeta;
+        this.requestMeta = undefined;
+        return meta;
     }
 
     protected abstract makeRequest(prompt: string): Promise<any>;

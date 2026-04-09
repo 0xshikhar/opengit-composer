@@ -1,7 +1,7 @@
 {
   "name": "opengit-composer",
   "displayName": "OpenGit Composer",
-  "description": "AI-Powered Git Commit Composer. Intelligently group staged changes into semantic commits using AI. Supports multiple AI providers (OpenAI, Anthropic, Gemini, Ollama) and commit conventions.",
+  "description": "AI-powered Git commit composer for VS Code. Groups staged changes into semantic commits with OpenAI, Anthropic, Groq, Google Gemini, Kimi, and Ollama.",
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
@@ -62,7 +62,7 @@
         {
           "id": "commitComposerContainer",
           "title": "OpenGit Composer",
-          "icon": "media/icon.svg"
+          "icon": "icon.png"
         }
       ]
     },

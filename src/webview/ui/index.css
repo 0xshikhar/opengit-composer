@@ -47,10 +47,56 @@ body {
   padding-bottom: 6px;
 }
 
+.gc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gc-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #111827 0%, #1f2937 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.gc-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gc-brand-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .gc-title {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+}
+
+.gc-subtitle {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9a9a9a);
+}
+
+.gc-brand-fallback {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #e5e7eb;
 }
 
 .btn {

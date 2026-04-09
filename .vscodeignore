@@ -9,7 +9,6 @@ out
 *.spec.ts
 docs
 **/*.png
-*.md
 .eslintrc.json
 tsconfig.json
 webpack.config.js
@@ -17,3 +16,4 @@ webpack.config.js
 inspiration.png
 sidebar-image.png
 !icon.png
+!media/icon.png

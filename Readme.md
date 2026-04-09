@@ -1,73 +1,88 @@
-# OpenGit Composer V2
+# OpenGit Composer
 
-**OpenGit Composer** is a VS Code extension that intelligently groups your staged changes into semantic, atomic commits using AI.
+OpenGit Composer is a VS Code extension that turns staged git changes into semantic, reviewable commit drafts with AI.
 
-Say goodbye to massive, unstructured commits. Let OpenGit Composer act as your personal AI git assistant from the VS Code Activity Bar and composer panel.
+It groups related changes, explains the reasoning, and lets you inspect, edit, and commit from a dedicated composer panel or the Activity Bar container.
 
-> Screenshot update in progress: current UX is Activity Bar container + optional full panel workspace.
 
-## ✨ New in V2
+## Installation
 
-- **Integrated Sidebar Experience:** OpenGit Composer lives in its own Activity Bar container (`OpenGit Composer`) with a dedicated compose workspace.
-- **Bring Your Own Model:** First-class support for multiple LLMs:
-  - OpenAI (GPT-4o, GPT-4)
-  - Anthropic (Claude 3 Opus/Sonnet/Haiku)
-  - Google (Gemini Pro)
-  - Moonshot (Kimi)
-  - Ollama (Local open-source models!)
-- **Intelligent Splitter Engine:** Advanced heuristic file clustering chunks your changes by domain (`auth`, `api`, `ui`, `core`), generating distinct atomic commits.
-- **GitLens-Quality UI:** A beautiful, responsive dark-themed interactive tree view built with React. Native diff viewer, inline commit editors, and drag-and-drop support.
-- **Batch Execution:** Safely review the AI's structured commit plan and execute them all in sequence with a single click.
+### Marketplace
 
-## 🚀 Features
+Install it from the VS Code Extensions view when published to the marketplace.
 
-- **🤖 AI-Powered Analysis:** Automatically parses git diffs to generate semantic commit groupings and accurate commit messages.
-- **🧩 Logical Grouping:** Even without AI, the heuristic clustering groups related file changes into cohesive commit units.
-- **👀 Interactive Review:** Clearly view staged files, proposed groups, and syntax-highlighted diffs before committing.
-- **🛠️ Manual Control:** Inline editing allows you to tweak the suggested commit message, edit the prefix, and manually combine/split files.
+### VSIX
 
-## 📦 Installation
+Download the VSIX directly:
 
-1. Open **VS Code**.
-2. Go to the **Extensions** view (`Cmd+Shift+X` or `Ctrl+Shift+X`).
-3. Search for **OpenGit Composer**.
-4. Click **Install**.
-   _(Currently available via VSIX deployment: `code --install-extension git-composer-v2-0.0.1.vsix`)_
+[Download `opengit-composer-2.0.0.vsix`](https://github.com/0xshikhar/git-composer/raw/main/opengit-composer-2.0.0.vsix)
 
-## 📖 Usage
+Then install it with:
 
-1. **Stage your changes** in the Source Control view as usual.
-2. Open the **OpenGit Composer** icon in the left **Activity Bar**.
-3. If you have no provider set, use the built-in Settings UI to pick an AI provider and enter your API Key.
-4. Click the **Sparkle / Compose** button to let the AI analyze your staged diffs.
-5. Review the generated **Draft Commits** in the interactive tree.
-6. Click **Commit** on a group, or click **Commit All** to dispatch the queue sequentially.
+```bash
+code --install-extension opengit-composer-2.0.0.vsix
+```
 
-## ⚙️ Configuration
 
-OpenGit Composer is highly customizable. Configure it via VS Code Settings (`Cmd+,`) or a local `.gitcomposer.json` file in your workspace root!
+## Features
 
-| Setting                           | Description                                                            | Default                  |
-| :-------------------------------- | :--------------------------------------------------------------------- | :----------------------- |
-| `commitComposer.aiProvider`       | Select the AI provider (OpenAI, Anthropic, Gemini, Kimi, Ollama)       | `openai`                 |
-| `commitComposer.apiKey`           | Your API Key for the selected provider                                 | `""`                     |
-| `commitComposer.model`            | Specific model to use (e.g., `gpt-4o`, `claude-3-opus`)                | _provider default_       |
-| `commitComposer.ollamaHost`       | Local host domain when using Ollama                                    | `http://localhost:11434` |
-| `commitComposer.commitFormat`     | Commit message format (`conventional`, `angular`, `gitmoji`, `custom`) | `conventional`           |
-| `commitComposer.maxSubjectLength` | Maximum character length for commit subject line                       | `72`                     |
-| `commitComposer.splitThreshold`   | Number of files above which the splitter groups into multiple commits  | `3`                      |
-| `commitComposer.excludePatterns`  | Glob patterns excluded from AI compose inputs                          | `[]`                     |
-| `commitComposer.redactPatterns`   | Regex patterns redacted before AI requests                             | `[]`                     |
+- AI-assisted commit planning from staged changes
+- Support for multiple providers:
+  - OpenAI
+  - Anthropic
+  - Groq
+  - Google Gemini
+  - Kimi (Moonshot)
+  - Ollama for local/offline use
+- Semantic grouping of changes into atomic commits
+- Conventional, Angular, Gitmoji, and custom commit styles
+- Interactive diff viewer and draft editor
+- Batch commit execution with progress feedback
+- Provider connection testing and model availability checks
+- Privacy controls for excluded files and redacted patterns
 
-## 🔑 Your Data & Privacy
+## How It Works
 
-To use the AI generation, you provide an API key for your chosen cloud provider.
+1. Stage the changes you want to commit.
+2. Open **OpenGit Composer** from the VS Code Activity Bar.
+3. Choose a provider and model in **AI Controls**.
+4. Add an API key if your provider needs one.
+5. Click **Compose** to generate commit drafts.
+6. Review the grouped files, edit messages if needed, then commit individually or in batch.
 
-- Your API key is stored securely in your local VS Code settings and never transmitted to our servers.
-- The Git Repository Diff is sent directly to your chosen provider (OpenAI/Anthropic/Google).
-- You can exclude files or redact sensitive strings using `excludePatterns` and `redactPatterns`.
-- **100% Privacy Option:** Select **`ollama`** as your provider to keep all code analysis completely offline and local on your machine!
+## Configuration
 
----
+You can configure OpenGit Composer in VS Code settings or by using the extension UI.
 
-**Enjoying OpenGit Composer V2?** Leave a review on the marketplace!
+| Setting | Description | Default |
+| --- | --- | --- |
+| `commitComposer.aiProvider` | AI provider to use | `openai` |
+| `commitComposer.apiKey` | API key for the selected provider | `""` |
+| `commitComposer.model` | Model to use, or leave empty for provider default | provider default |
+| `commitComposer.ollamaHost` | Ollama server URL | `http://localhost:11434` |
+| `commitComposer.commitFormat` | Commit style (`conventional`, `angular`, `gitmoji`, `custom`) | `conventional` |
+| `commitComposer.maxSubjectLength` | Maximum commit subject length | `72` |
+| `commitComposer.splitThreshold` | File count threshold for splitting commits | `3` |
+| `commitComposer.excludePatterns` | Glob patterns excluded from AI input | `[]` |
+| `commitComposer.redactPatterns` | Regex patterns redacted before sending diffs to AI | `[]` |
+| `commitComposer.debugMode` | Enable detailed logging | `false` |
+
+## Privacy
+
+OpenGit Composer sends staged diffs only to the provider you choose.
+
+- API keys stay local in VS Code settings.
+- You can exclude files from compose input.
+- You can redact sensitive text before any request is sent.
+- Ollama can keep all analysis local on your machine.
+
+## Commands
+
+- `Commit Composer: Auto Compose`
+- `Commit Composer: Show Debug Logs`
+- `Commit Composer: Copy Sanitized Logs`
+
+## Support
+
+- Repository: https://github.com/0xshikhar/git-composer
+- Issues: https://github.com/0xshikhar/git-composer/issues

@@ -14,6 +14,7 @@ export interface ComposerConfig {
     includeRecentCommits: boolean;
     recentCommitCount: number;
     ollamaHost: string;
+    lmStudioHost: string;
     excludePatterns: string[];
     redactPatterns: string[];
 }
@@ -29,6 +30,7 @@ const DEFAULT_CONFIG: ComposerConfig = {
     includeRecentCommits: true,
     recentCommitCount: 10,
     ollamaHost: 'http://localhost:11434',
+    lmStudioHost: 'http://localhost:1234/v1',
     excludePatterns: [],
     redactPatterns: [],
 };
@@ -122,6 +124,9 @@ export class ConfigLoader {
             const ollamaHost = vsConfig.get('ollamaHost') as string | undefined;
             if (ollamaHost) this.config.ollamaHost = ollamaHost;
 
+            const lmStudioHost = vsConfig.get('lmStudioHost') as string | undefined;
+            if (lmStudioHost) this.config.lmStudioHost = lmStudioHost;
+
             const commitFormat = vsConfig.get('commitFormat') as string | undefined;
             if (commitFormat) this.config.commitFormat = commitFormat as ComposerConfig['commitFormat'];
 
@@ -169,6 +174,7 @@ export class ConfigLoader {
             if (fileConfig.includeRecentCommits !== undefined) this.config.includeRecentCommits = fileConfig.includeRecentCommits;
             if (fileConfig.recentCommitCount) this.config.recentCommitCount = fileConfig.recentCommitCount;
             if (fileConfig.ollamaHost) this.config.ollamaHost = fileConfig.ollamaHost;
+            if (fileConfig.lmStudioHost) this.config.lmStudioHost = fileConfig.lmStudioHost;
             if (Array.isArray(fileConfig.excludePatterns)) this.config.excludePatterns = fileConfig.excludePatterns;
             if (Array.isArray(fileConfig.redactPatterns)) this.config.redactPatterns = fileConfig.redactPatterns;
 

@@ -13,8 +13,13 @@ export type ProviderName =
     | 'anthropic'
     | 'groq'
     | 'gemini'
+    | 'lmstudio'
     | 'kimi'
     | 'ollama';
+
+export function isLocalProvider(providerId: string): boolean {
+    return providerId === 'ollama' || providerId === 'lmstudio';
+}
 
 export const PROVIDERS: ProviderInfo[] = [
     {
@@ -40,9 +45,23 @@ export const PROVIDERS: ProviderInfo[] = [
         name: 'Google Gemini',
         requiresApiKey: true,
         defaultModel: 'gemini-2.5-flash',
-        models: ['gemini-3-flash', 'gemini-3.1-pro', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+        models: [
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash-lite-preview-06-17',
+            'gemini-2.0-flash',
+        ],
         baseUrl: 'apiKey',
         defaultBaseUrl: 'https://generativelanguage.googleapis.com',
+    },
+    {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        requiresApiKey: false,
+        defaultModel: '',
+        models: [],
+        baseUrl: 'baseUrl',
+        defaultBaseUrl: 'http://localhost:1234/v1',
     },
     {
         id: 'kimi',
@@ -58,16 +77,7 @@ export const PROVIDERS: ProviderInfo[] = [
         name: 'Groq',
         requiresApiKey: true,
         defaultModel: 'groq/compound',
-        models: ['groq/compound', 'qwen-qwq-32b', 'deepseek-r1-distill-llama-70b'],
-        baseUrl: 'apiKey',
-        defaultBaseUrl: 'https://api.groq.com/openai/v1',
-    },
-    {
-        id: 'groq',
-        name: 'Groq',
-        requiresApiKey: true,
-        defaultModel: 'llama3-70b-8192',
-        models: ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
+        models: ['groq/compound', 'qwen-qwq-32b', 'deepseek-r1-distill-llama-70b', 'llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
         baseUrl: 'apiKey',
         defaultBaseUrl: 'https://api.groq.com/openai/v1',
     },

@@ -14,7 +14,7 @@ export class PromptBuilder {
             changeType: change.changeType,
             additions: change.additions,
             deletions: change.deletions,
-            diffExcerpt: this.truncateDiff(change.diff, 60)
+            diffExcerpt: this.truncateDiff(change.diff, 40, 4000)
         }));
 
         const contextBlock = this.buildContextBlock(context);
@@ -82,7 +82,7 @@ Hard rules:
             type: f.changeType,
             additions: f.additions,
             deletions: f.deletions,
-            diff: this.truncateDiff(f.diff, 50)
+            diff: this.truncateDiff(f.diff, 30, 2500)
         }));
 
         let contextBlock = '';
@@ -170,12 +170,24 @@ ${truncatedRaw}`;
 ${recentCommits || '- none'}\n`;
     }
 
-    private static truncateDiff(diff: string, maxLines: number): string {
-        const lines = diff.split('\n');
-        if (lines.length <= maxLines) {
-            return diff;
+    private static truncateDiff(diff: string, maxLines: number, maxChars: number): string {
+        let truncated = diff;
+
+        if (truncated.length > maxChars) {
+            truncated = truncated.slice(0, maxChars);
+            const lastNewline = truncated.lastIndexOf('\n');
+            if (lastNewline > Math.floor(maxChars * 0.5)) {
+                truncated = truncated.slice(0, lastNewline);
+            }
+            truncated += '\n... (truncated by character limit)';
         }
-        return lines.slice(0, maxLines).join('\n') + '\n... (truncated)';
+
+        const lines = truncated.split('\n');
+        if (lines.length > maxLines) {
+            return lines.slice(0, maxLines).join('\n') + '\n... (truncated by line limit)';
+        }
+
+        return truncated;
     }
 
     static estimateTokens(text: string): number {

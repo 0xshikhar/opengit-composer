@@ -15,7 +15,7 @@ Install it from the VS Code Extensions view when published to the marketplace.
 
 Download the VSIX directly:
 
-[Download `opengit-composer-2.0.0.vsix`](https://github.com/0xshikhar/opengit-composer/releases/download/2.0.0/opengit-composer-2.0.0.vsix)
+[Download `opengit-composer-2.0.1.vsix`](https://github.com/0xshikhar/opengit-composer/releases/download/2.0.1/opengit-composer-2.0.1.vsix)
 
 Then install it with:
 

@@ -98,16 +98,10 @@ export class GeminiProvider extends AIProvider {
     }
 
     protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
-        try {
-            const model = this.config.model || getProviderDefaultModel('gemini');
-            const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
+        const model = this.config.model || getProviderDefaultModel('gemini');
+        const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
 
-            Logger.debug('GeminiProvider: Making API request', {
-                model,
-                mode,
-                promptLength: prompt.length,
-            });
-
+        const executeRequest = async (useSchema: boolean): Promise<any> => {
             const response = await requestWithRetry(
                 'GeminiProvider.makeRequest',
                 () => axios.post(
@@ -126,7 +120,7 @@ export class GeminiProvider extends AIProvider {
                             temperature: this.config.temperature || 0.2,
                             maxOutputTokens: this.config.maxTokens || 4096,
                             responseMimeType: mode === 'json' ? 'application/json' : 'text/plain',
-                            ...(mode === 'json' ? { responseSchema: this.getGroupingResponseSchema() } : {}),
+                            ...(mode === 'json' && useSchema ? { responseSchema: this.getGroupingResponseSchema() } : {}),
                         }
                     },
                     {
@@ -139,7 +133,34 @@ export class GeminiProvider extends AIProvider {
 
             Logger.debug('GeminiProvider: API response received', { status: response.status });
             return response.data;
+        };
+
+        try {
+            Logger.debug('GeminiProvider: Making API request', {
+                model,
+                mode,
+                promptLength: prompt.length,
+            });
+            return await executeRequest(true);
         } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isSchemaOrFormatError =
+                mode === 'json' &&
+                /responseSchema|responseMimeType|schema|JSON|invalid/i.test(message);
+
+            if (isSchemaOrFormatError) {
+                Logger.warn('GeminiProvider: Retrying without response schema after request failure', {
+                    model,
+                    message,
+                });
+                try {
+                    return await executeRequest(false);
+                } catch (retryError) {
+                    Logger.error('GeminiProvider: API request failed after schema fallback', retryError);
+                    throw buildProviderError('Gemini API Error', retryError);
+                }
+            }
+
             Logger.error('GeminiProvider: API request failed', error);
             throw buildProviderError('Gemini API Error', error);
         }

@@ -5,16 +5,16 @@
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "license": "MIT",
   "icon": "icon.png",
-  "homepage": "https://github.com/0xshikhar/git-composer",
+  "homepage": "https://github.com/0xshikhar/opengit-composer",
   "repository": {
     "type": "git",
-    "url": "https://github.com/0xshikhar/git-composer.git"
+    "url": "https://github.com/0xshikhar/opengit-composer.git"
   },
   "bugs": {
-    "url": "https://github.com/0xshikhar/git-composer/issues"
+    "url": "https://github.com/0xshikhar/opengit-composer/issues"
   },
   "keywords": [
     "git",
@@ -41,8 +41,8 @@
   },
   "badges": [
     {
-      "url": "https://img.shields.io/github/stars/0xshikhar/git-composer?style=social",
-      "href": "https://github.com/0xshikhar/git-composer",
+      "url": "https://img.shields.io/github/stars/0xshikhar/opengit-composer?style=social",
+      "href": "https://github.com/0xshikhar/opengit-composer",
       "description": "GitHub Stars"
     }
   ],

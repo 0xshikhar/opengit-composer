@@ -150,8 +150,12 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         const config = this.getConfigLoader().getConfig();
         return {
             provider: config.provider,
-            model: config.model,
-            baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : undefined),
+            model: config.provider === 'ollama' || config.provider === 'lmstudio' ? '' : config.model,
+            baseUrl: config.baseUrl || (config.provider === 'ollama'
+                ? config.ollamaHost
+                : config.provider === 'lmstudio'
+                    ? config.lmStudioHost
+                    : undefined),
         };
     }
 

@@ -165,15 +165,23 @@ export class CommitComposerPanel {
 
     private async handleGenerate(config: any) {
         try {
+            const model = config.provider === 'ollama' || config.provider === 'lmstudio'
+                ? ''
+                : config.model;
             Logger.info('CommitComposerPanel: Generating commits', {
                 provider: config.provider,
-                model: config.model
+                model
             });
 
             // Use factory to create provider
             this.aiProvider = AIProviderFactory.create(config.provider, {
                 apiKey: config.apiKey,
-                model: config.model
+                model,
+                baseUrl: config.baseUrl || (config.provider === 'ollama'
+                    ? 'http://localhost:11434'
+                    : config.provider === 'lmstudio'
+                        ? 'http://localhost:1234/v1'
+                        : undefined),
             });
 
             const changes = await this.gitService.getStagedChanges();

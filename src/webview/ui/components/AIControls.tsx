@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
-import { getProviderDisplayName, getProviderModelOptions, type ProviderName } from '../../../utils/constant';
+import { getProviderBaseUrl, getProviderDisplayName, getProviderModelOptions, isLocalProvider, type ProviderName } from '../../../utils/constant';
 
-const PROVIDER_VALUES = ['openai', 'anthropic', 'groq', 'gemini', 'kimi', 'ollama'] as const satisfies readonly ProviderName[];
+const PROVIDER_VALUES = ['openai', 'anthropic', 'groq', 'gemini', 'lmstudio', 'kimi', 'ollama'] as const satisfies readonly ProviderName[];
 
 const PROVIDERS: { value: ProviderName; label: string; models: readonly string[] }[] = PROVIDER_VALUES.map((value) => ({
     value,
@@ -31,13 +31,13 @@ export default function AIControls() {
     const [testingConnection, setTestingConnection] = useState(false);
 
     const selectedProvider = PROVIDERS.find(p => p.value === providerConfig.provider) || PROVIDERS[0];
-    const isLocal = providerConfig.provider === 'ollama';
+    const isLocal = isLocalProvider(providerConfig.provider);
     const keys = savedKeys[providerConfig.provider] || [];
     const hasKeys = keys.length > 0;
 
     const loadOllamaModels = () => {
-        const baseUrl = providerConfig.baseUrl || 'http://localhost:11434';
-        postMessage('loadOllamaModels', { baseUrl });
+        const baseUrl = providerConfig.baseUrl || getProviderBaseUrl(providerConfig.provider) || 'http://localhost:11434';
+        postMessage('loadOllamaModels', { provider: providerConfig.provider, baseUrl });
     };
 
     useEffect(() => {
@@ -50,15 +50,23 @@ export default function AIControls() {
         } else {
             setOllamaModels([]);
         }
-    }, [isLocal, providerConfig.baseUrl, setOllamaModels]);
+    }, [isLocal, providerConfig.provider, providerConfig.baseUrl, setOllamaModels]);
 
     const handleProviderChange = (provider: string) => {
-        setProviderConfig({ provider, model: '', apiKey: '' });
+        const nextBaseUrl = isLocalProvider(provider)
+            ? getProviderBaseUrl(provider) || ''
+            : providerConfig.baseUrl || '';
+        setProviderConfig({
+            provider,
+            model: '',
+            apiKey: '',
+            baseUrl: isLocalProvider(provider) ? nextBaseUrl : undefined,
+        });
         setShowKeyInput(false);
         setNewKey('');
         setNewKeyLabel('');
         // Save preference immediately when switching provider
-        saveProviderPreference(provider, '', providerConfig.baseUrl || '');
+        saveProviderPreference(provider, '', nextBaseUrl);
     };
 
     const handleModelChange = (model: string) => {
@@ -262,7 +270,7 @@ export default function AIControls() {
                     )}
 
                     {/* No keys saved - show input */}
-                    {!hasKeys && !showKeyInput && providerConfig.provider !== 'ollama' && (
+                    {!hasKeys && !showKeyInput && !isLocal && (
                         <div className="ai-control-row">
                             <label className="ai-label">API Key</label>
                             <div className="api-key-empty-state">
@@ -288,9 +296,9 @@ export default function AIControls() {
                     <input
                         type="text"
                         className="ai-input"
-                        value={providerConfig.baseUrl || 'http://localhost:11434'}
+                        value={providerConfig.baseUrl || getProviderBaseUrl(providerConfig.provider) || 'http://localhost:11434'}
                         onChange={(e) => handleHostChange(e.target.value)}
-                        placeholder="http://localhost:11434"
+                        placeholder={getProviderBaseUrl(providerConfig.provider) || 'http://localhost:11434'}
                         disabled={isLoading}
                     />
                 </div>
@@ -304,7 +312,7 @@ export default function AIControls() {
                     onChange={(e) => handleModelChange(e.target.value)}
                     disabled={isLoading}
                 >
-                    <option value="">Default</option>
+                    <option value="">{isLocal ? 'Active model' : 'Default'}</option>
                     {(isLocal ? ollamaModels : selectedProvider.models).map(m => (
                         <option key={m} value={m}>{m}</option>
                     ))}

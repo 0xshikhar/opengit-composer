@@ -47,6 +47,13 @@ function parseRetryAfter(headerValue: unknown): number | undefined {
     return undefined;
 }
 
+export interface ProviderErrorDetails {
+    message: string;
+    code?: string;
+    status?: number;
+    details?: string;
+}
+
 export function isRetriableError(error: unknown): boolean {
     if (!axios.isAxiosError(error)) return false;
 
@@ -132,19 +139,40 @@ export function extractModelIds(payload: unknown): string[] {
 }
 
 export function buildProviderError(prefix: string, error: unknown): Error {
+    const details = describeProviderError(error);
+    const wrapped = new Error(`${prefix}: ${details.message}`) as Error & ProviderErrorDetails;
+    wrapped.code = details.code;
+    wrapped.status = details.status;
+    wrapped.details = details.details;
+    return wrapped;
+}
+
+export function describeProviderError(error: unknown): ProviderErrorDetails {
     if (axios.isAxiosError(error)) {
         const responseData = error.response?.data as any;
         const apiMessage =
             responseData?.error?.message ||
             responseData?.message ||
             (typeof responseData === 'string' ? responseData : undefined);
-        const message = apiMessage || error.message;
-        return new Error(`${prefix}: ${message}`);
+        const details: ProviderErrorDetails = {
+            message: apiMessage || error.message,
+            code: error.code,
+            status: error.response?.status,
+        };
+        if (typeof responseData?.error?.details === 'string') {
+            details.details = responseData.error.details;
+        } else if (typeof responseData?.details === 'string') {
+            details.details = responseData.details;
+        }
+        return details;
     }
 
-    if (error instanceof Error) {
-        return new Error(`${prefix}: ${error.message}`);
-    }
-
-    return new Error(`${prefix}: ${String(error)}`);
+    const fallback = error instanceof Error ? error : new Error(String(error));
+    const generic = fallback as Error & ProviderErrorDetails;
+    return {
+        message: generic.message,
+        code: generic.code,
+        status: generic.status,
+        details: generic.details,
+    };
 }

@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { AIProviderFactory } from '../../ai/aiProviderFactory';
+import { LMStudioProvider } from '../../ai/providers/lmstudio';
 import { OllamaProvider } from '../../ai/providers/ollama';
 import { ConfigLoader } from '../../core/configLoader';
 import { KeyManager } from '../../core/keyManager';
 import { ComposeProviderConfig } from '../../core/orchestrator';
+import { isLocalProvider } from '../../utils/constant';
 
 export interface ProviderHealthSliceDeps {
     keyManager?: KeyManager;
@@ -91,15 +93,21 @@ export async function resetKeys(
     await webview.postMessage({ command: 'keysReset', provider, success: true, keys: [] });
 }
 
-export async function loadOllamaModels(baseUrl: string, webview: vscode.Webview): Promise<void> {
+export async function loadLocalModels(provider: string, baseUrl: string, webview: vscode.Webview): Promise<void> {
     try {
-        const ollamaProvider = new OllamaProvider({ apiKey: '', model: '', baseUrl });
-        const models = await ollamaProvider.getAvailableModels();
+        const localProvider = provider === 'lmstudio'
+            ? new LMStudioProvider({ apiKey: '', model: '', baseUrl })
+            : new OllamaProvider({ apiKey: '', model: '', baseUrl });
+        const models = await localProvider.getAvailableModels();
         await webview.postMessage({ command: 'ollamaModelsLoaded', models });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await webview.postMessage({ command: 'ollamaModelsLoaded', models: [], error: message });
     }
+}
+
+export async function loadOllamaModels(baseUrl: string, webview: vscode.Webview): Promise<void> {
+    await loadLocalModels('ollama', baseUrl, webview);
 }
 
 export async function testProviderConnection(
@@ -108,10 +116,11 @@ export async function testProviderConnection(
     webview: vscode.Webview
 ): Promise<void> {
     const resolvedConfig = providerConfig || getDefaultProviderConfig(deps.configLoader);
+    const model = isLocalProvider(resolvedConfig.provider) ? '' : (resolvedConfig.model || '');
     const apiKey = await resolveApiKeyForProvider(deps, resolvedConfig.provider, resolvedConfig.apiKey);
     const provider = AIProviderFactory.create(resolvedConfig.provider, {
         apiKey,
-        model: resolvedConfig.model || '',
+        model,
         baseUrl: resolvedConfig.baseUrl,
     });
 
@@ -150,8 +159,8 @@ export async function saveProviderPreference(
         await vsConfig.update('aiProvider', provider, true);
         await vsConfig.update('model', model, true);
 
-        if (provider === 'ollama' && baseUrl) {
-            await vsConfig.update('ollamaHost', baseUrl, true);
+        if (baseUrl && (provider === 'ollama' || provider === 'lmstudio')) {
+            await vsConfig.update(provider === 'lmstudio' ? 'lmStudioHost' : 'ollamaHost', baseUrl, true);
         }
 
         await webview.postMessage({
@@ -175,8 +184,12 @@ function getDefaultProviderConfig(configLoader: ConfigLoader): ComposeProviderCo
     const config = configLoader.getConfig();
     return {
         provider: config.provider,
-        model: config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : undefined),
+        model: isLocalProvider(config.provider) ? '' : config.model,
+        baseUrl: config.baseUrl || (config.provider === 'ollama'
+            ? config.ollamaHost
+            : config.provider === 'lmstudio'
+                ? config.lmStudioHost
+                : undefined),
     };
 }
 
@@ -185,6 +198,10 @@ async function resolveApiKeyForProvider(
     provider: string,
     preferredKey?: string
 ): Promise<string> {
+    if (isLocalProvider(provider)) {
+        return '';
+    }
+
     const trimmed = (preferredKey || '').trim();
     if (trimmed) {
         return trimmed;

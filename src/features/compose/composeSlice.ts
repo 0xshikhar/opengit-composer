@@ -5,6 +5,7 @@ import { KeyManager } from '../../core/keyManager';
 import { Orchestrator, ComposeProviderConfig } from '../../core/orchestrator';
 import { Logger } from '../../utils/logger';
 import { buildPrivacyPreview } from '../privacy/privacyService';
+import { isLocalProvider } from '../../utils/constant';
 
 interface ComposeMessageError extends Error {
     code?: string;
@@ -25,8 +26,8 @@ export async function loadComposeData(
     const config = deps.configLoader.getConfig();
     const providerConfig = {
         provider: config.provider,
-        model: config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : undefined),
+        model: isLocalProvider(config.provider) ? '' : config.model,
+        baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : config.provider === 'lmstudio' ? config.lmStudioHost : undefined),
     };
     const privacy = buildPrivacyPreview(staged, config.excludePatterns, config.redactPatterns);
 
@@ -49,7 +50,7 @@ export async function composeWithKeyRotation(
     const resolvedConfig: ComposeProviderConfig = providerConfig || getDefaultProviderConfig(deps.configLoader);
     await runComposePreflight(deps, resolvedConfig);
 
-    if (resolvedConfig.provider === 'ollama' || !deps.keyManager) {
+    if (isLocalProvider(resolvedConfig.provider) || !deps.keyManager) {
         await compose(deps, resolvedConfig, webview);
         return;
     }
@@ -127,8 +128,11 @@ export async function runComposePreflight(
     const config = deps.configLoader.getConfig();
     const explicitApiKey = (providerConfig.apiKey || '').trim();
     const configuredApiKey = (config.apiKey || '').trim();
+    const providerModel = (providerConfig.model || '').trim();
+    const configuredModel = isLocalProvider(provider) ? '' : (config.model || '').trim();
+    const model = providerModel || configuredModel;
 
-    if (provider !== 'ollama') {
+    if (!isLocalProvider(provider)) {
         let storedKeys = 0;
         if (deps.keyManager) {
             storedKeys = await deps.keyManager.getKeyCount(provider);
@@ -145,25 +149,29 @@ export async function runComposePreflight(
     const resolvedApiKey = await resolveApiKeyForProvider(deps, provider, explicitApiKey || configuredApiKey);
     const providerInstance = AIProviderFactory.create(provider, {
         apiKey: resolvedApiKey,
-        model: providerConfig.model || config.model || '',
-        baseUrl: providerConfig.baseUrl || config.baseUrl || (provider === 'ollama' ? config.ollamaHost : undefined),
+        model,
+        baseUrl: providerConfig.baseUrl || config.baseUrl || (provider === 'ollama'
+            ? config.ollamaHost
+            : provider === 'lmstudio'
+                ? config.lmStudioHost
+                : undefined),
     });
 
     const reachable = await providerInstance.validateApiKey();
     if (!reachable) {
         const error = new Error(
-            provider === 'ollama'
-                ? `Unable to reach Ollama at ${providerConfig.baseUrl || config.baseUrl || config.ollamaHost}. Check the host and whether Ollama is running.`
+            isLocalProvider(provider)
+                ? `Unable to reach ${provider === 'lmstudio' ? 'LM Studio' : 'Ollama'} at ${providerConfig.baseUrl || config.baseUrl || (provider === 'lmstudio' ? config.lmStudioHost : config.ollamaHost)}. Check the host and whether the local server is running.`
                 : `Unable to validate credentials for provider "${provider}". Check your API key and network access.`
         ) as ComposeMessageError;
-        error.code = provider === 'ollama' ? 'PRECHECK_OLLAMA_UNREACHABLE' : 'AUTH_ERROR';
+        error.code = isLocalProvider(provider) ? 'PRECHECK_OLLAMA_UNREACHABLE' : 'AUTH_ERROR';
         throw error;
     }
 
     const modelCheck = await providerInstance.validateModelAvailability();
     if (!modelCheck.available) {
         const error = new Error(
-            modelCheck.reason || `Model "${providerConfig.model || config.model}" is not available for provider "${provider}".`
+            modelCheck.reason || `Model "${model}" is not available for provider "${provider}".`
         ) as ComposeMessageError;
         error.code = 'PRECHECK_MODEL_UNAVAILABLE';
         throw error;
@@ -197,7 +205,11 @@ export function getDefaultProviderConfig(configLoader: ConfigLoader): ComposePro
     const config = configLoader.getConfig();
     return {
         provider: config.provider,
-        model: config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : undefined),
+        model: isLocalProvider(config.provider) ? '' : config.model,
+        baseUrl: config.baseUrl || (config.provider === 'ollama'
+            ? config.ollamaHost
+            : config.provider === 'lmstudio'
+                ? config.lmStudioHost
+                : undefined),
     };
 }

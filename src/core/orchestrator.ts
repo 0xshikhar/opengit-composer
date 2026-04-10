@@ -10,6 +10,8 @@ import { Logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { applyPrivacyPolicyToChanges } from './privacyPolicy';
 import { FileClassifier } from './parser/fileClassifier';
+import { describeProviderError } from '../ai/providers/providerUtils';
+import { isLocalProvider } from '../utils/constant';
 
 export interface ComposeProviderConfig {
     provider: string;
@@ -33,6 +35,9 @@ export interface ComposeMeta {
     aiUsedModel?: string;
     aiModelFailover?: boolean;
     aiModelFailoverReason?: string;
+    aiRequestError?: string;
+    aiRequestCode?: string;
+    aiRequestStatus?: number;
     excludedFileCount: number;
     redactedMatchCount: number;
     invalidExcludePatterns?: string[];
@@ -114,6 +119,9 @@ export class Orchestrator {
                 | 'aiUsedModel'
                 | 'aiModelFailover'
                 | 'aiModelFailoverReason'
+                | 'aiRequestError'
+                | 'aiRequestCode'
+                | 'aiRequestStatus'
                 | 'parserFallbackStrategy'
                 | 'parserFallbackDetails'
                 | 'parserQualityScore'
@@ -145,6 +153,13 @@ export class Orchestrator {
         const meta: ComposeMeta = {
             usedFallback: composeResult.meta?.usedFallback ?? false,
             fallbackReason: composeResult.meta?.fallbackReason,
+            aiRequestedModel: composeResult.meta?.aiRequestedModel,
+            aiUsedModel: composeResult.meta?.aiUsedModel,
+            aiModelFailover: composeResult.meta?.aiModelFailover,
+            aiModelFailoverReason: composeResult.meta?.aiModelFailoverReason,
+            aiRequestError: composeResult.meta?.aiRequestError,
+            aiRequestCode: composeResult.meta?.aiRequestCode,
+            aiRequestStatus: composeResult.meta?.aiRequestStatus,
             excludedFileCount: privacyResult.excludedPaths.length,
             redactedMatchCount: privacyResult.redactedMatches,
             invalidExcludePatterns: privacyResult.invalidExcludePatterns,
@@ -175,16 +190,19 @@ export class Orchestrator {
     } {
         const provider = providerConfig.provider || config.provider;
         const apiKey = providerConfig.apiKey || config.apiKey || '';
-        const model =
-            providerConfig.model ||
-            config.model ||
-            AIProviderFactory.getDefaultModel(provider);
+        const model = isLocalProvider(provider)
+            ? (providerConfig.model || '')
+            : (providerConfig.model || config.model || AIProviderFactory.getDefaultModel(provider));
         const baseUrl =
             providerConfig.baseUrl ||
             config.baseUrl ||
-            (provider === 'ollama' ? config.ollamaHost : undefined);
+            (provider === 'ollama'
+                ? config.ollamaHost
+                : provider === 'lmstudio'
+                    ? config.lmStudioHost
+                    : undefined);
 
-        if (provider !== 'ollama' && !apiKey) {
+        if (!isLocalProvider(provider) && !apiKey) {
             throw new Error(
                 `No API key configured for ${provider}. Set commitComposer.apiKey in Settings or enter it in the OpenGit Composer panel.`
             );
@@ -225,6 +243,9 @@ export class Orchestrator {
             | 'aiUsedModel'
             | 'aiModelFailover'
             | 'aiModelFailoverReason'
+            | 'aiRequestError'
+            | 'aiRequestCode'
+            | 'aiRequestStatus'
             | 'parserFallbackStrategy'
             | 'parserFallbackDetails'
             | 'parserQualityScore'
@@ -302,6 +323,15 @@ export class Orchestrator {
                 },
             };
         } catch (error) {
+            const failure = describeProviderError(error);
+            Logger.warn('Orchestrator: AI request failed; falling back to heuristics', {
+                provider: providerConfig.provider,
+                model: providerConfig.model,
+                status: failure.status,
+                code: failure.code,
+                message: failure.message,
+                details: failure.details,
+            });
             Logger.error('Orchestrator: AI composition failed, falling back to heuristics', error);
             // Fall back to heuristic grouping instead of throwing
             const heuristicResult = await this.composeWithHeuristics(changes, context, config);
@@ -310,6 +340,10 @@ export class Orchestrator {
                 meta: {
                     usedFallback: true,
                     fallbackReason: 'ai_request_failed',
+                    aiRequestedModel: providerConfig.model,
+                    aiRequestError: failure.message,
+                    aiRequestCode: failure.code,
+                    aiRequestStatus: failure.status,
                 },
             };
         }

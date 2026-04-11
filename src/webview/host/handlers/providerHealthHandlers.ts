@@ -1,89 +1,57 @@
-import * as vscode from 'vscode';
-import { ConfigLoader } from '../../../core/configLoader';
-import { KeyManager } from '../../../core/keyManager';
 import { ComposeProviderConfig } from '../../../core/orchestrator';
-import { WebviewToHostMessage } from '../../../types/messages';
 import {
     loadKeys,
-    loadLocalModels,
+    loadOllamaModels,
     removeKey,
     resetKeys,
     saveKey,
     saveProviderPreference,
     testProviderConnection,
 } from '../../../features/provider-health/providerHealthSlice';
+import { WebviewToHostMessage } from '../../../types/messages';
+import { WebviewCommandRegistry } from './types';
+import { ProviderHealthSliceDeps } from '../../../features/provider-health/providerHealthSlice';
 
-export interface ProviderHealthHandlerDeps {
-    keyManager?: KeyManager;
-    getConfigLoader: () => ConfigLoader;
-}
+export interface ProviderHealthHandlerDeps extends ProviderHealthSliceDeps {}
 
-export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps) {
+export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps): WebviewCommandRegistry {
+    const resolveProviderConfig = (message: WebviewToHostMessage) => message.providerConfig as ComposeProviderConfig | undefined;
+
     return {
-        loadKeys: async (message: WebviewToHostMessage, webview: vscode.Webview) => loadKeys(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
+        loadKeys: async (message, webview) => loadKeys(
+            deps,
             String(message.provider || ''),
             webview
         ),
-        saveKey: async (message: WebviewToHostMessage, webview: vscode.Webview) => saveKey(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
+        saveKey: async (message, webview) => saveKey(
+            deps,
             String(message.provider || ''),
             String(message.key || ''),
             typeof message.label === 'string' ? message.label : undefined,
             webview
         ),
-        removeKey: async (message: WebviewToHostMessage, webview: vscode.Webview) => removeKey(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
+        removeKey: async (message, webview) => removeKey(
+            deps,
             String(message.provider || ''),
             Number(message.keyIndex ?? -1),
             webview
         ),
-        resetKeys: async (message: WebviewToHostMessage, webview: vscode.Webview) => resetKeys(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
+        resetKeys: async (message, webview) => resetKeys(
+            deps,
             String(message.provider || ''),
             webview
         ),
-        loadOllamaModels: async (message: WebviewToHostMessage, webview: vscode.Webview) => loadLocalModels(
-            String(message.provider || 'ollama'),
-            String(message.baseUrl || (String(message.provider || '') === 'lmstudio' ? 'http://localhost:1234/v1' : 'http://localhost:11434')),
+        testProviderConnection: async (message, webview) => testProviderConnection(deps, resolveProviderConfig(message), webview),
+        testConnection: async (message, webview) => testProviderConnection(deps, resolveProviderConfig(message), webview),
+        loadOllamaModels: async (message, webview) => loadOllamaModels(
+            String(message.baseUrl || 'http://localhost:11434'),
             webview
         ),
-        saveProviderPreference: async (message: WebviewToHostMessage, webview: vscode.Webview) => saveProviderPreference(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
+        saveProviderPreference: async (message, webview) => saveProviderPreference(
+            deps,
             String(message.provider || ''),
             String(message.model || ''),
             String(message.baseUrl || ''),
-            webview
-        ),
-        testConnection: async (message: WebviewToHostMessage, webview: vscode.Webview) => testProviderConnection(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
-            message.providerConfig as ComposeProviderConfig | undefined,
-            webview
-        ),
-        testProviderConnection: async (message: WebviewToHostMessage, webview: vscode.Webview) => testProviderConnection(
-            {
-                keyManager: deps.keyManager,
-                configLoader: deps.getConfigLoader(),
-            },
-            message.providerConfig as ComposeProviderConfig | undefined,
             webview
         ),
     };

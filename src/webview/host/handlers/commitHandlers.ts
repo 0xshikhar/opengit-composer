@@ -1,37 +1,26 @@
 import * as vscode from 'vscode';
-import { CommitExecutor } from '../../../core/commitExecutor';
-import { ConfigLoader } from '../../../core/configLoader';
-import { Orchestrator, ComposeSnapshot } from '../../../core/orchestrator';
+import { ComposeSnapshot } from '../../../core/orchestrator';
 import { DraftCommit } from '../../../types/commits';
+import { CommitSliceDeps, commitAll, commitSingle } from '../../../features/commit/commitSlice';
 import { WebviewToHostMessage } from '../../../types/messages';
-import { commitAll as commitAllSlice, commitSingle as commitSingleSlice } from '../../../features/commit/commitSlice';
+import { WebviewCommandRegistry } from './types';
 
-export interface CommitHandlerDeps {
-    getCommitExecutor: () => CommitExecutor;
-    getConfigLoader: () => ConfigLoader;
-    getCurrentStagedChanges: () => ReturnType<Orchestrator['getStagedChanges']>;
-    refreshVisibleViews: () => Promise<void>;
-}
+export interface CommitHandlerDeps extends CommitSliceDeps {}
 
-export function createCommitHandlers(deps: CommitHandlerDeps) {
-    const commitDeps = {
-        commitExecutor: deps.getCommitExecutor(),
-        configLoader: deps.getConfigLoader(),
-        getCurrentStagedChanges: deps.getCurrentStagedChanges,
-        refreshVisibleViews: deps.refreshVisibleViews,
-    };
+export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandRegistry {
+    const resolveSnapshot = (message: WebviewToHostMessage) => message.snapshot as ComposeSnapshot | undefined;
 
     return {
-        commitSingle: async (message: WebviewToHostMessage, webview: vscode.Webview) => commitSingleSlice(
-            commitDeps,
+        commitSingle: async (message, webview) => commitSingle(
+            deps,
             message.draft as DraftCommit,
-            message.snapshot as ComposeSnapshot | undefined,
+            resolveSnapshot(message),
             webview
         ),
-        commitAll: async (message: WebviewToHostMessage, webview: vscode.Webview) => commitAllSlice(
-            commitDeps,
+        commitAll: async (message, webview) => commitAll(
+            deps,
             message.drafts as DraftCommit[],
-            message.snapshot as ComposeSnapshot | undefined,
+            resolveSnapshot(message),
             webview
         ),
     };

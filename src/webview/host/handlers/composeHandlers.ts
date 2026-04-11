@@ -1,45 +1,28 @@
 import * as vscode from 'vscode';
-import { ConfigLoader } from '../../../core/configLoader';
-import { KeyManager } from '../../../core/keyManager';
-import { Orchestrator } from '../../../core/orchestrator';
+import { ComposeProviderConfig } from '../../../core/orchestrator';
 import { WebviewToHostMessage } from '../../../types/messages';
-import { loadComposeData, composeWithKeyRotation } from '../../../features/compose/composeSlice';
+import { ComposeSliceDeps, loadComposeData, composeWithKeyRotation } from '../../../features/compose/composeSlice';
+import { WebviewCommandRegistry } from './types';
 
-export interface ComposeHandlerDeps {
-    getOrchestrator: () => Orchestrator;
-    getConfigLoader: () => ConfigLoader;
-    keyManager?: KeyManager;
+export interface ComposeHandlerDeps extends ComposeSliceDeps {
+    openComposerPanel: (providerConfig?: ComposeProviderConfig, autoCompose?: boolean) => Promise<void>;
 }
 
-export function createComposeHandlers(deps: ComposeHandlerDeps) {
+export function createComposeHandlers(deps: ComposeHandlerDeps): WebviewCommandRegistry {
     const loadChanges = async (webview: vscode.Webview) => {
-        await loadComposeData(
-            {
-                orchestrator: deps.getOrchestrator(),
-                configLoader: deps.getConfigLoader(),
-                keyManager: deps.keyManager,
-            },
-            webview
-        );
+        await loadComposeData(deps, webview);
     };
 
-    const compose = async (message: WebviewToHostMessage, webview: vscode.Webview) => {
-        await composeWithKeyRotation(
-            {
-                orchestrator: deps.getOrchestrator(),
-                configLoader: deps.getConfigLoader(),
-                keyManager: deps.keyManager,
-            },
-            message.providerConfig as any,
-            webview
-        );
+    const compose = async (providerConfig: ComposeProviderConfig | undefined, webview: vscode.Webview) => {
+        await composeWithKeyRotation(deps, providerConfig, webview);
     };
+
+    const resolveProviderConfig = (message: WebviewToHostMessage) => message.providerConfig as ComposeProviderConfig | undefined;
 
     return {
-        loadData: async (message: WebviewToHostMessage, webview: vscode.Webview) => loadChanges(webview),
-        refresh: async (message: WebviewToHostMessage, webview: vscode.Webview) => loadChanges(webview),
-        compose: async (message: WebviewToHostMessage, webview: vscode.Webview) => compose(message, webview),
-        triggerCompose: async (message: WebviewToHostMessage, webview: vscode.Webview) => compose(message, webview),
-        retryCompose: async (message: WebviewToHostMessage, webview: vscode.Webview) => compose(message, webview),
+        loadData: async (_message, webview) => loadChanges(webview),
+        triggerCompose: async (message, webview) => compose(resolveProviderConfig(message), webview),
+        compose: async (message, webview) => compose(resolveProviderConfig(message), webview),
+        retryCompose: async (message, webview) => compose(resolveProviderConfig(message), webview),
     };
 }

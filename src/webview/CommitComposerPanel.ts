@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import { GitService } from '../git/gitService';
 import { AIProviderFactory } from '../ai/aiProviderFactory';
 import { AIProvider } from '../ai/aiProvider';
+import { ConfigLoader } from '../core/configLoader';
 import { CommitGroup } from '../types/commits';
 import { FileChange } from '../types/git';
 import { Logger } from '../utils/logger';
 import { isWebviewToHostMessage, WebviewToHostMessage } from '../types/messages';
+import { postError } from '../features/support/errorMapper';
 
 export class CommitComposerPanel {
     public static currentPanel: CommitComposerPanel | undefined;
@@ -156,10 +158,7 @@ export class CommitComposerPanel {
             });
         } catch (e) {
             Logger.error('CommitComposerPanel: Failed to load changes', e);
-            this._panel.webview.postMessage({
-                command: 'error',
-                message: (e as Error).message
-            });
+            await postError(this._panel.webview, e, new ConfigLoader());
         }
     }
 
@@ -201,10 +200,7 @@ export class CommitComposerPanel {
 
         } catch (e) {
             Logger.error('CommitComposerPanel: Failed to generate commits', e);
-            this._panel.webview.postMessage({
-                command: 'error',
-                message: (e as Error).message
-            });
+            await postError(this._panel.webview, e, new ConfigLoader());
         }
     }
 

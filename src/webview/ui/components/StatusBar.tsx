@@ -3,7 +3,7 @@ import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
 export default function StatusBar() {
-    const { isLoading, isCommitting, error, errorAction, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
+    const { isLoading, isCommitting, error, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     if (isCommitting && commitProgress) {
@@ -32,20 +32,22 @@ export default function StatusBar() {
 
     if (error) {
         return (
-            <div className="status-bar status-error">
+            <div className={`status-bar status-error status-error-${error.severity}`}>
                 <span className="status-icon">⚠️</span>
-                <span className="error-text">{error}</span>
-                {diagnostics && (
-                    <span className="status-privacy" title={diagnostics.details || diagnostics.message}>
-                        {diagnostics.provider}:{diagnostics.code}{diagnostics.status ? ` • ${diagnostics.status}` : ''}
+                <span className="error-text">{error.message}</span>
+                <span className="status-fallback-badge">{error.code}</span>
+                <span className="status-fallback-badge">{error.severity}</span>
+                {error.diagnostics && (
+                    <span className="status-privacy" title={error.diagnostics.details || error.diagnostics.message}>
+                        {error.diagnostics.provider}:{error.diagnostics.code}{error.diagnostics.status ? ` • ${error.diagnostics.status}` : ''}
                     </span>
                 )}
-                {errorAction && (
+                {error.action && (
                     <button
                         className="btn btn-sm status-inline-action"
-                        onClick={() => postMessage(errorAction.command)}
+                        onClick={() => postMessage(error.action!.command)}
                     >
-                        {errorAction.label}
+                        {error.action.label}
                     </button>
                 )}
             </div>

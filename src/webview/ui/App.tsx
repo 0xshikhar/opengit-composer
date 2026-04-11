@@ -74,7 +74,7 @@ export default function App() {
             const payload = message as HostToWebviewMessage & Record<string, any>;
             switch (payload.command) {
                 case 'dataLoaded':
-                    if ((useCommitStore.getState().error || '').includes('Staged changes have changed since composition')) {
+                    if (useCommitStore.getState().error?.code === 'STAGED_SNAPSHOT_STALE') {
                         setDrafts([], null, null, null, null);
                         setActiveView('tree');
                     }
@@ -83,7 +83,7 @@ export default function App() {
                     if (payload.data?.privacyPreview) {
                         setPrivacyPreview(payload.data.privacyPreview);
                     }
-                    setError(null, null);
+                    setError(null);
                     setDiagnostics(null);
                     if (payload.data?.providerConfig) {
                         setProviderConfig(payload.data.providerConfig);
@@ -139,7 +139,7 @@ export default function App() {
                     break;
 
                 case 'error':
-                    setError(payload.message, payload.action || null, payload.diagnostics || null);
+                    setError(payload.error || null);
                     setLoading(false);
                     setCommitting(false);
                     break;
@@ -195,7 +195,7 @@ export default function App() {
     // Determine if we should show the setup wizard
     const hasGitRepo = stagedFiles.length > 0 || unstagedFiles.length > 0;
     const hasStagedChanges = stagedFiles.length > 0;
-    const providerConfigured = providerConfig.apiKey && providerConfig.provider !== 'openai';
+    const providerConfigured = Boolean(providerConfig.apiKey) && providerConfig.provider !== 'openai';
 
     return (
         <div className="git-composer">

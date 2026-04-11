@@ -61,6 +61,15 @@ export interface ComposerErrorAction {
     command: Extract<WebviewToHostCommand, 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection'>;
 }
 
+export interface ComposerErrorPayload {
+    code: ComposerErrorCode;
+    severity: ComposerErrorSeverity;
+    recoverable: boolean;
+    message: string;
+    action?: ComposerErrorAction;
+    diagnostics?: ComposerDiagnostics;
+}
+
 export interface ComposerDiagnostics {
     provider: string;
     code: ComposerErrorCode;

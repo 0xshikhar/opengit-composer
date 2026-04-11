@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ComposerErrorAction, ComposerErrorCode } from '../../../types/messages';
+import { ComposerErrorAction, ComposerErrorCode, ComposerErrorSeverity } from '../../../types/messages';
 
 // Types duplicated for webview context (no vscode imports)
 export interface FileChange {
@@ -86,6 +86,15 @@ export interface ProviderDiagnostics {
     hint?: string;
 }
 
+export interface ComposerErrorState {
+    code: ComposerErrorCode;
+    severity: ComposerErrorSeverity;
+    recoverable: boolean;
+    message: string;
+    action?: ErrorAction | null;
+    diagnostics?: ProviderDiagnostics | null;
+}
+
 export interface ConnectionTestResult {
     provider: string;
     available: boolean;
@@ -117,8 +126,7 @@ interface CommitStoreState {
     selectedFilePath: string | null;
     isLoading: boolean;
     isCommitting: boolean;
-    error: string | null;
-    errorAction: ErrorAction | null;
+    error: ComposerErrorState | null;
     commitProgress: { current: number; total: number } | null;
 
     // Provider config
@@ -148,7 +156,7 @@ interface CommitStoreState {
     selectFile: (path: string | null) => void;
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
-    setError: (error: string | null, action?: ErrorAction | null, diagnostics?: ProviderDiagnostics | null) => void;
+    setError: (error: ComposerErrorState | null) => void;
     setCommitProgress: (progress: { current: number; total: number } | null) => void;
     setProviderConfig: (config: Partial<ProviderConfig>) => void;
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
@@ -191,7 +199,6 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     isLoading: false,
     isCommitting: false,
     error: null,
-    errorAction: null,
     commitProgress: null,
     providerConfig: {
         provider: 'openai',
@@ -214,14 +221,13 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             composeSnapshot: snapshot,
             composeMeta: meta,
             error: null,
-            errorAction: null,
             diagnostics: null,
         }),
     selectDraft: (id) => set({ selectedDraftId: id }),
     selectFile: (path) => set({ selectedFilePath: path, activeView: 'diff' }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
-    setError: (error, action = null, diagnostics = null) => set({ error, errorAction: action, diagnostics }),
+    setError: (error) => set({ error, diagnostics: error?.diagnostics || null }),
     setCommitProgress: (progress) => set({ commitProgress: progress }),
     setProviderConfig: (config) =>
         set((state) => ({
@@ -333,7 +339,6 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             isLoading: false,
             isCommitting: false,
             error: null,
-            errorAction: null,
             commitProgress: null,
             activeView: 'tree',
             ollamaModels: [],

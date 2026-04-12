@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import simpleGit from 'simple-git';
 import { GitService } from '../core/git/gitService';
 import {
     Orchestrator,
@@ -33,6 +34,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _orchestrator?: Orchestrator;
     private _commitExecutor?: CommitExecutor;
+    private _workspacePath?: string;
     private _configLoader?: ConfigLoader;
     private _keyManager?: KeyManager;
     private _messageRouter?: ReturnType<typeof createWebviewCommandRouter>;
@@ -54,6 +56,17 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         if (this._panel) {
             this._panel.reveal(column);
             if (autoCompose) {
+                const workspacePath = await this.ensureWorkspacePath(true);
+                if (!workspacePath) {
+                    await postError(
+                        this._panel.webview,
+                        Object.assign(new Error('Select a folder containing a git repository to continue.'), {
+                            code: 'NO_GIT_REPOSITORY',
+                        }),
+                        this.getConfigLoader()
+                    );
+                    return;
+                }
                 await this._panel.webview.postMessage({
                     command: 'triggerCompose',
                     providerConfig: resolvedProviderConfig,
@@ -127,14 +140,14 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
     private getOrchestrator(): Orchestrator {
         if (!this._orchestrator) {
-            this._orchestrator = new Orchestrator(new GitService());
+            this._orchestrator = new Orchestrator(new GitService(this._workspacePath));
         }
         return this._orchestrator;
     }
 
     private getCommitExecutor(): CommitExecutor {
         if (!this._commitExecutor) {
-            this._commitExecutor = new CommitExecutor(new GitService());
+            this._commitExecutor = new CommitExecutor(new GitService(this._workspacePath));
         }
         return this._commitExecutor;
     }
@@ -167,10 +180,104 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                 getCommitExecutor: () => this.getCommitExecutor(),
                 keyManager: this._keyManager,
                 openComposerPanel: (providerConfig, autoCompose) => this.openComposerPanel(providerConfig, autoCompose),
+                openWorkspace: () => this.openWorkspace(),
                 refreshVisibleViews: () => this.refreshAllVisibleViews(),
             });
         }
         return this._messageRouter;
+    }
+
+    private async ensureWorkspacePath(promptIfMissing: boolean, forcePrompt: boolean = false): Promise<string | undefined> {
+        if (this._workspacePath && !forcePrompt) {
+            return this._workspacePath;
+        }
+
+        const workspaceFolders = vscode.workspace.workspaceFolders || [];
+        const gitCandidates: string[] = [];
+
+        for (const folder of workspaceFolders) {
+            try {
+                const git = simpleGit(folder.uri.fsPath);
+                if (await git.checkIsRepo()) {
+                    gitCandidates.push(folder.uri.fsPath);
+                }
+            } catch {
+                // Ignore folders that are not git repositories.
+            }
+        }
+
+        if (gitCandidates.length === 1) {
+            this._workspacePath = gitCandidates[0];
+            return this._workspacePath;
+        }
+
+        if (gitCandidates.length > 1) {
+            const selected = await vscode.window.showQuickPick(
+                gitCandidates.map((workspacePath) => ({
+                    label: vscode.workspace.asRelativePath(workspacePath, false) || workspacePath,
+                    description: workspacePath,
+                    workspacePath,
+                })),
+                {
+                    placeHolder: 'Select the git repository to use with OpenGit Composer',
+                    ignoreFocusOut: true,
+                }
+            );
+
+            if (selected?.workspacePath) {
+                this._workspacePath = selected.workspacePath;
+                return this._workspacePath;
+            }
+        }
+
+        if (!promptIfMissing) {
+            return undefined;
+        }
+
+        const picked = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select Git Repository',
+            title: 'Select a folder containing a git repository',
+        });
+
+        const selectedPath = picked?.[0]?.fsPath;
+        if (!selectedPath) {
+            return undefined;
+        }
+
+        try {
+            if (!(await simpleGit(selectedPath).checkIsRepo())) {
+                await vscode.window.showErrorMessage('The selected folder is not a git repository. Choose a folder that contains a .git directory.');
+                return this.ensureWorkspacePath(true);
+            }
+        } catch {
+            await vscode.window.showErrorMessage('The selected folder is not a git repository. Choose a folder that contains a .git directory.');
+            return this.ensureWorkspacePath(true);
+        }
+
+        this._workspacePath = selectedPath;
+        return this._workspacePath;
+    }
+
+    private resetWorkspaceBindings(): void {
+        this._orchestrator = undefined;
+        this._commitExecutor = undefined;
+    }
+
+    private async openWorkspace(): Promise<void> {
+        const previousPath = this._workspacePath;
+        this._workspacePath = undefined;
+
+        const selectedPath = await this.ensureWorkspacePath(true, true);
+        if (!selectedPath) {
+            this._workspacePath = previousPath;
+            return;
+        }
+
+        this.resetWorkspaceBindings();
+        await this.refreshAllVisibleViews();
     }
 
     private _setWebviewMessageListener(webview: vscode.Webview, source: WebviewSource) {
@@ -267,14 +374,26 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     }
 
     private async loadChanges(webview: vscode.Webview): Promise<void> {
-        await loadComposeData(
-            {
-                orchestrator: this.getOrchestrator(),
-                configLoader: this.getConfigLoader(),
-                keyManager: this._keyManager,
-            },
-            webview
-        );
+        try {
+            const workspacePath = await this.ensureWorkspacePath(true);
+            if (!workspacePath) {
+                throw Object.assign(new Error('Select a folder containing a git repository to continue.'), {
+                    code: 'NO_GIT_REPOSITORY',
+                });
+            }
+
+            await loadComposeData(
+                {
+                    orchestrator: this.getOrchestrator(),
+                    configLoader: this.getConfigLoader(),
+                    keyManager: this._keyManager,
+                },
+                webview
+            );
+        } catch (error) {
+            Logger.error('CommitComposerProvider: Failed to load changes', error);
+            await postError(webview, error, this.getConfigLoader());
+        }
     }
 
     private async refreshAllVisibleViews(): Promise<void> {

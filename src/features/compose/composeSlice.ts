@@ -17,9 +17,14 @@ export interface ComposeSliceDeps {
     keyManager?: KeyManager;
 }
 
+export interface LoadComposeDataOptions {
+    resetSession?: boolean;
+}
+
 export async function loadComposeData(
     deps: ComposeSliceDeps,
-    webview: vscode.Webview
+    webview: vscode.Webview,
+    options: LoadComposeDataOptions = {}
 ): Promise<void> {
     const staged = await deps.orchestrator.getStagedChanges();
     const unstaged = await deps.orchestrator.getUnstagedChanges();
@@ -38,6 +43,7 @@ export async function loadComposeData(
             unstaged,
             providerConfig,
             privacyPreview: privacy.preview,
+            resetSession: options.resetSession ?? false,
         },
     });
 }

@@ -74,7 +74,12 @@ export default function App() {
             const payload = message as HostToWebviewMessage & Record<string, any>;
             switch (payload.command) {
                 case 'dataLoaded':
-                    if (useCommitStore.getState().error?.code === 'STAGED_SNAPSHOT_STALE') {
+                    if (payload.data?.resetSession) {
+                        setDrafts([], null, null, null, null);
+                        useCommitStore.getState().selectDraft(null);
+                        useCommitStore.getState().selectFile(null);
+                        setActiveView('tree');
+                    } else if (useCommitStore.getState().error?.code === 'STAGED_SNAPSHOT_STALE') {
                         setDrafts([], null, null, null, null);
                         setActiveView('tree');
                     }

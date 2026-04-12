@@ -42,4 +42,14 @@ suite('Error Mapper Test Suite', () => {
         assert.ok(mapped.action);
         assert.strictEqual(mapped.action?.command, 'retryCompose');
     });
+
+    test('maps missing git repository errors to a directory selection action', () => {
+        const mapped = mapErrorToMessage(new Error('fatal: not a git repository (or any of the parent directories): .git'), configLoader);
+
+        assert.strictEqual(mapped.code, 'NO_GIT_REPOSITORY');
+        assert.strictEqual(mapped.severity, 'warning');
+        assert.strictEqual(mapped.recoverable, true);
+        assert.ok(mapped.action);
+        assert.strictEqual(mapped.action?.command, 'openWorkspace');
+    });
 });

@@ -10,6 +10,7 @@ suite('Webview Command Router Test Suite', () => {
                 getConfigLoader: () => ({} as any),
                 getCommitExecutor: () => ({} as any),
                 openComposerPanel: async () => {},
+                openWorkspace: async () => {},
                 refreshVisibleViews: async () => {},
             },
             {
@@ -39,6 +40,7 @@ suite('Webview Command Router Test Suite', () => {
                 getConfigLoader: () => ({} as any),
                 getCommitExecutor: () => ({} as any),
                 openComposerPanel: async () => {},
+                openWorkspace: async () => {},
                 refreshVisibleViews: async () => {},
             },
             {
@@ -68,6 +70,7 @@ suite('Webview Command Router Test Suite', () => {
                 getConfigLoader: () => ({} as any),
                 getCommitExecutor: () => ({} as any),
                 openComposerPanel: async () => {},
+                openWorkspace: async () => {},
                 refreshVisibleViews: async () => {},
             },
             {
@@ -97,6 +100,7 @@ suite('Webview Command Router Test Suite', () => {
                 getConfigLoader: () => ({} as any),
                 getCommitExecutor: () => ({} as any),
                 openComposerPanel: async () => {},
+                openWorkspace: async () => {},
                 refreshVisibleViews: async () => {},
             },
             {
@@ -107,6 +111,7 @@ suite('Webview Command Router Test Suite', () => {
                     workspace: {
                         refresh: async () => { calls.push('workspace:refresh'); },
                         openComposerPanel: async () => { calls.push('workspace:openComposerPanel'); },
+                        openWorkspace: async () => { calls.push('workspace:openWorkspace'); },
                     },
                 } satisfies Partial<WebviewCommandRegistrySet>,
             }
@@ -114,8 +119,9 @@ suite('Webview Command Router Test Suite', () => {
 
         await router({ command: 'refresh' } as any, {} as any);
         await router({ command: 'openComposerPanel' } as any, {} as any);
+        await router({ command: 'openWorkspace' } as any, {} as any);
 
-        assert.deepStrictEqual(calls, ['workspace:refresh', 'workspace:openComposerPanel']);
+        assert.deepStrictEqual(calls, ['workspace:refresh', 'workspace:openComposerPanel', 'workspace:openWorkspace']);
     });
 
     test('ignores unknown commands', async () => {
@@ -126,6 +132,7 @@ suite('Webview Command Router Test Suite', () => {
                 getConfigLoader: () => ({} as any),
                 getCommitExecutor: () => ({} as any),
                 openComposerPanel: async () => {},
+                openWorkspace: async () => {},
                 refreshVisibleViews: async () => {},
             },
             {

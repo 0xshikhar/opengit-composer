@@ -164,7 +164,7 @@ export async function runComposePreflight(
                 ? `Unable to reach ${provider === 'lmstudio' ? 'LM Studio' : 'Ollama'} at ${providerConfig.baseUrl || config.baseUrl || (provider === 'lmstudio' ? config.lmStudioHost : config.ollamaHost)}. Check the host and whether the local server is running.`
                 : `Unable to validate credentials for provider "${provider}". Check your API key and network access.`
         ) as ComposeMessageError;
-        error.code = isLocalProvider(provider) ? 'PRECHECK_OLLAMA_UNREACHABLE' : 'AUTH_ERROR';
+        error.code = isLocalProvider(provider) ? 'PRECHECK_LOCAL_PROVIDER_UNREACHABLE' : 'AUTH_ERROR';
         throw error;
     }
 

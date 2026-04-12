@@ -173,6 +173,7 @@ export async function postError(
 function severityForCode(code: ComposerErrorCode): ComposerErrorSeverity {
     switch (code) {
         case 'PRECHECK_MISSING_API_KEY':
+        case 'PRECHECK_LOCAL_PROVIDER_UNREACHABLE':
         case 'PRECHECK_OLLAMA_UNREACHABLE':
         case 'PRECHECK_MODEL_UNAVAILABLE':
         case 'NO_GIT_REPOSITORY':

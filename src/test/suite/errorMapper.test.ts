@@ -31,6 +31,16 @@ suite('Error Mapper Test Suite', () => {
         assert.strictEqual(mapped.action?.command, 'testConnection');
     });
 
+    test('keeps local provider unreachable errors provider-specific', () => {
+        const error = new Error('Unable to reach LM Studio at http://localhost:1234/v1. Check the host and whether the local server is running.');
+        (error as any).code = 'PRECHECK_LOCAL_PROVIDER_UNREACHABLE';
+        const mapped = mapErrorToMessage(error, configLoader);
+
+        assert.strictEqual(mapped.code, 'PRECHECK_LOCAL_PROVIDER_UNREACHABLE');
+        assert.strictEqual(mapped.severity, 'error');
+        assert.strictEqual(mapped.recoverable, true);
+    });
+
     test('maps rate limit errors to warning severity', () => {
         const error = new Error('429 rate limit exceeded');
         (error as any).code = 'RATE_LIMIT';

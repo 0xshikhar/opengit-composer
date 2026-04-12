@@ -44,6 +44,7 @@ export type ComposerErrorSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
 export type ComposerErrorCode =
     | 'PRECHECK_MISSING_API_KEY'
+    | 'PRECHECK_LOCAL_PROVIDER_UNREACHABLE'
     | 'PRECHECK_OLLAMA_UNREACHABLE'
     | 'PRECHECK_MODEL_UNAVAILABLE'
     | 'NO_GIT_REPOSITORY'

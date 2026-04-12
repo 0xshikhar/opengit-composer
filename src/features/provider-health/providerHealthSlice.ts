@@ -155,9 +155,10 @@ export async function saveProviderPreference(
 
         const vscodeApi = require('vscode');
         const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
+        const resolvedModel = isLocalProvider(provider) ? '' : model;
 
         await vsConfig.update('aiProvider', provider, true);
-        await vsConfig.update('model', model, true);
+        await vsConfig.update('model', resolvedModel, true);
 
         if (baseUrl && (provider === 'ollama' || provider === 'lmstudio')) {
             await vsConfig.update(provider === 'lmstudio' ? 'lmStudioHost' : 'ollamaHost', baseUrl, true);
@@ -167,7 +168,7 @@ export async function saveProviderPreference(
             command: 'providerPreferenceSaved',
             success: true,
             provider,
-            model,
+            model: resolvedModel,
             baseUrl,
         });
     } catch (error) {

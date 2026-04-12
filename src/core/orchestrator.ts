@@ -496,24 +496,47 @@ export class Orchestrator {
     }
 
     private normalizeConventionalSubject(subject: string): string {
-        const prefixMatch = subject.match(/^([a-z]+(?:\([^)]+\))?!?:)\s*/i);
-        if (!prefixMatch) {
+        const parsedPrefix = this.parseConventionalPrefix(subject);
+        if (!parsedPrefix) {
             return subject;
         }
 
-        const prefix = prefixMatch[1];
-        let remainder = subject.slice(prefixMatch[0].length).trimStart();
-        const duplicatePrefix = new RegExp(`^${this.escapeRegExp(prefix)}\\s*`, 'i');
+        let remainder = parsedPrefix.remainder.trimStart();
 
-        while (duplicatePrefix.test(remainder)) {
-            remainder = remainder.replace(duplicatePrefix, '').trimStart();
+        while (true) {
+            const nestedPrefix = this.parseConventionalPrefix(remainder);
+            if (!nestedPrefix) {
+                break;
+            }
+
+            const sameType = nestedPrefix.type === parsedPrefix.type;
+            const sameScope =
+                !parsedPrefix.scope ||
+                !nestedPrefix.scope ||
+                nestedPrefix.scope === parsedPrefix.scope;
+
+            if (!sameType || !sameScope) {
+                break;
+            }
+
+            remainder = nestedPrefix.remainder.trimStart();
         }
 
-        return remainder ? `${prefix} ${remainder}` : prefix;
+        return remainder ? `${parsedPrefix.prefix} ${remainder}` : parsedPrefix.prefix;
     }
 
-    private escapeRegExp(value: string): string {
-        return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    private parseConventionalPrefix(subject: string): { type: string; scope?: string; prefix: string; remainder: string } | null {
+        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?!?:\s*/i);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            type: match[1].toLowerCase(),
+            scope: match[2]?.toLowerCase(),
+            prefix: match[0].trimEnd(),
+            remainder: subject.slice(match[0].length),
+        };
     }
 
     private buildForcedDraftPayload(

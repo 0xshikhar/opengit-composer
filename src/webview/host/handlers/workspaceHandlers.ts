@@ -11,6 +11,7 @@ export interface WorkspaceHandlerDeps {
     getConfigLoader: () => ConfigLoader;
     keyManager?: KeyManager;
     openComposerPanel: (providerConfig?: ComposeProviderConfig, autoCompose?: boolean) => Promise<void>;
+    openWorkspace: () => Promise<void>;
 }
 
 export function createWorkspaceHandlers(deps: WorkspaceHandlerDeps): WebviewCommandRegistry {
@@ -30,6 +31,7 @@ export function createWorkspaceHandlers(deps: WorkspaceHandlerDeps): WebviewComm
             message.providerConfig as ComposeProviderConfig,
             typeof message.autoCompose === 'boolean' ? message.autoCompose : true
         ),
+        openWorkspace: async () => deps.openWorkspace(),
         copySanitizedLogs: async () => Logger.copySanitizedLogs(),
         refresh: async (_message, webview) => loadChanges(webview),
         openKeyInput: async (message) => {

@@ -13,6 +13,7 @@ export interface WebviewCommandRouterDeps {
     getCommitExecutor: () => CommitExecutor;
     keyManager?: KeyManager;
     openComposerPanel: (providerConfig?: ComposeProviderConfig, autoCompose?: boolean) => Promise<void>;
+    openWorkspace: () => Promise<void>;
     refreshVisibleViews: () => Promise<void>;
 }
 
@@ -82,6 +83,7 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
             getConfigLoader: () => deps.getConfigLoader(),
             keyManager: deps.keyManager,
             openComposerPanel: deps.openComposerPanel,
+            openWorkspace: deps.openWorkspace,
         }),
     };
 }

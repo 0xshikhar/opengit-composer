@@ -46,6 +46,7 @@ export type ComposerErrorCode =
     | 'PRECHECK_MISSING_API_KEY'
     | 'PRECHECK_OLLAMA_UNREACHABLE'
     | 'PRECHECK_MODEL_UNAVAILABLE'
+    | 'NO_GIT_REPOSITORY'
     | 'AUTH_ERROR'
     | 'RATE_LIMIT'
     | 'NETWORK_ERROR'
@@ -58,7 +59,7 @@ export type ComposerErrorCode =
 
 export interface ComposerErrorAction {
     label: string;
-    command: Extract<WebviewToHostCommand, 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection'>;
+    command: Extract<WebviewToHostCommand, 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection' | 'openWorkspace'>;
 }
 
 export interface ComposerErrorPayload {

@@ -51,6 +51,17 @@ export function mapErrorToMessage(
         };
     }
 
+    if (code === 'NO_GIT_REPOSITORY' || /not a git repository|No workspace folder found|repository not found/i.test(message)) {
+        return {
+            code: 'NO_GIT_REPOSITORY',
+            severity: 'warning',
+            recoverable: true,
+            message: 'OpenGit Composer could not find a git repository in the current workspace. Select a directory that contains a .git repository.',
+            action: { label: 'Select Directory', command: 'openWorkspace' },
+            diagnostics,
+        };
+    }
+
     if (/No API key configured|missing api key/i.test(message)) {
         return {
             code: 'PRECHECK_MISSING_API_KEY',
@@ -164,6 +175,7 @@ function severityForCode(code: ComposerErrorCode): ComposerErrorSeverity {
         case 'PRECHECK_MISSING_API_KEY':
         case 'PRECHECK_OLLAMA_UNREACHABLE':
         case 'PRECHECK_MODEL_UNAVAILABLE':
+        case 'NO_GIT_REPOSITORY':
         case 'AUTH_ERROR':
         case 'NETWORK_ERROR':
         case 'DNS_ERROR':

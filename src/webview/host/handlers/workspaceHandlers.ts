@@ -15,14 +15,15 @@ export interface WorkspaceHandlerDeps {
 }
 
 export function createWorkspaceHandlers(deps: WorkspaceHandlerDeps): WebviewCommandRegistry {
-    const loadChanges = async (webview: vscode.Webview) => {
+    const loadChanges = async (webview: vscode.Webview, resetSession: boolean = false) => {
         await loadComposeData(
             {
                 orchestrator: deps.getOrchestrator(),
                 configLoader: deps.getConfigLoader(),
                 keyManager: deps.keyManager,
             },
-            webview
+            webview,
+            { resetSession }
         );
     };
 
@@ -33,7 +34,7 @@ export function createWorkspaceHandlers(deps: WorkspaceHandlerDeps): WebviewComm
         ),
         openWorkspace: async () => deps.openWorkspace(),
         copySanitizedLogs: async () => Logger.copySanitizedLogs(),
-        refresh: async (_message, webview) => loadChanges(webview),
+        refresh: async (_message, webview) => loadChanges(webview, true),
         openKeyInput: async (message) => {
             Logger.info('WorkspaceHandlers: openKeyInput received', {
                 provider: String(message.provider || ''),

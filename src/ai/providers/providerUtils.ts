@@ -138,6 +138,45 @@ export function extractModelIds(payload: unknown): string[] {
         .map((model: string) => normalizeModelId(model));
 }
 
+export function extractChatCompletionContent(response: any, providerName: string): string {
+    const content = response?.choices?.[0]?.message?.content;
+    if (typeof content === 'string' && content.trim()) {
+        return content;
+    }
+
+    throw new Error(`${providerName} response did not include commit message content.`);
+}
+
+export function extractGeminiContent(response: any, providerName: string): string {
+    const candidates = response?.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+        const blockReason = response?.promptFeedback?.blockReason;
+        if (blockReason) {
+            throw new Error(`${providerName} response blocked: ${blockReason}`);
+        }
+        throw new Error(`${providerName} response did not include any candidates`);
+    }
+
+    const candidate = candidates[0];
+    const parts = candidate?.content?.parts;
+    const text = Array.isArray(parts)
+        ? parts
+            .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+            .join('\n')
+            .trim()
+        : '';
+
+    if (text) {
+        return text;
+    }
+
+    if (candidate?.finishReason) {
+        throw new Error(`${providerName} response had no text content (finish reason: ${candidate.finishReason})`);
+    }
+
+    throw new Error(`${providerName} response had no text content`);
+}
+
 export function buildProviderError(prefix: string, error: unknown): Error {
     const details = describeProviderError(error);
     const wrapped = new Error(`${prefix}: ${details.message}`) as Error & ProviderErrorDetails;

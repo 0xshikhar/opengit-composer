@@ -66,8 +66,8 @@ export class OllamaProvider extends AIProvider {
         const models = await this.getAvailableModels();
         if (models.length === 0) {
             return {
-                available: true,
-                reason: 'Ollama server reachable, but no models were reported.',
+                available: false,
+                reason: 'Ollama server is reachable, but no models were reported. Pull or load a model before composing.',
                 models,
             };
         }

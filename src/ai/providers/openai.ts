@@ -4,7 +4,13 @@ import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import {
+    buildProviderError,
+    extractChatCompletionContent,
+    extractModelIds,
+    modelIdsMatch,
+    requestWithRetry,
+} from './providerUtils';
 
 export class OpenAIProvider extends AIProvider {
     private readonly endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -33,7 +39,7 @@ export class OpenAIProvider extends AIProvider {
         const responseTime = Date.now() - startTime;
         
         // OpenAI's chat completion format
-        const content = response.choices[0].message.content;
+        const content = extractChatCompletionContent(response, this.providerName);
         
         Logger.aiResponse(this.providerName, 200, content.length, responseTime);
         Logger.aiRawResponse(content);
@@ -46,7 +52,7 @@ export class OpenAIProvider extends AIProvider {
         Logger.warn('OpenAIProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = repairResponse.choices?.[0]?.message?.content || '';
+        const repairContent = extractChatCompletionContent(repairResponse, this.providerName);
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -56,7 +62,7 @@ export class OpenAIProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
 
         const response = await this.makeRequest(prompt);
-        const content = response.choices[0].message.content;
+        const content = extractChatCompletionContent(response, this.providerName);
         
         Logger.aiRawResponse(content);
         

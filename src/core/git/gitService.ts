@@ -1,4 +1,5 @@
 import simpleGit, { SimpleGit } from 'simple-git';
+import * as path from 'path';
 import { FileChange, ChangeType, RepoContext } from '../../types/git';
 
 export class GitService {
@@ -101,6 +102,38 @@ export class GitService {
         await this.git.raw(['commit', '-m', message, '--', ...normalizedFiles]);
     }
 
+    async getCurrentHead(): Promise<string> {
+        return (await this.git.revparse(['HEAD'])).trim();
+    }
+
+    async snapshotLooseChanges(label: string): Promise<boolean> {
+        const status = await this.git.status();
+        const hasLooseChanges = status.files.some(file => file.index === '?' || file.working_dir !== ' ');
+        if (!hasLooseChanges) {
+            return false;
+        }
+
+        await this.git.raw(['stash', 'push', '--keep-index', '-u', '-m', label]);
+        return true;
+    }
+
+    async applyLatestStash(includeIndex: boolean): Promise<void> {
+        const args = ['stash', 'apply'];
+        if (includeIndex) {
+            args.push('--index');
+        }
+        args.push('stash@{0}');
+        await this.git.raw(args);
+    }
+
+    async dropLatestStash(): Promise<void> {
+        await this.git.raw(['stash', 'drop', 'stash@{0}']);
+    }
+
+    async resetHard(ref: string): Promise<void> {
+        await this.git.raw(['reset', '--hard', ref]);
+    }
+
     // --- Repository context ---
 
     async getRepoContext(): Promise<RepoContext> {
@@ -109,7 +142,7 @@ export class GitService {
             this.git.log({ maxCount: 10 }),
         ]);
 
-        const repoName = this.workspacePath.split('/').pop() || 'unknown';
+        const repoName = path.basename(this.workspacePath) || 'unknown';
         const branch = branchResult.current;
         const recentCommits = logResult.all.map(c => c.message);
 

@@ -3,7 +3,13 @@ import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../a
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
-import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import {
+    buildProviderError,
+    extractChatCompletionContent,
+    extractModelIds,
+    modelIdsMatch,
+    requestWithRetry,
+} from './providerUtils';
 import { getProviderDefaultModel, getProviderModelOptions } from '../../utils/constant';
 
 export class GroqProvider extends AIProvider {
@@ -16,7 +22,7 @@ export class GroqProvider extends AIProvider {
     async analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse> {
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         const response = await this.makeRequest(prompt);
-        const content = response?.choices?.[0]?.message?.content || '';
+        const content = extractChatCompletionContent(response, 'Groq');
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
             return parsed;
@@ -24,7 +30,7 @@ export class GroqProvider extends AIProvider {
 
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = repairResponse?.choices?.[0]?.message?.content || '';
+        const repairContent = extractChatCompletionContent(repairResponse, 'Groq');
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -34,7 +40,7 @@ export class GroqProvider extends AIProvider {
         const response = await this.makeRequest(prompt);
 
         return ResponseParser.parseMessageResponse(
-            response.choices[0].message.content
+            extractChatCompletionContent(response, 'Groq')
         );
     }
 

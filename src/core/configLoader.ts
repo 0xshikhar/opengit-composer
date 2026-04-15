@@ -165,7 +165,7 @@ export class ConfigLoader {
 
             if (fileConfig.provider) this.config.provider = fileConfig.provider;
             if (fileConfig.model) this.config.model = fileConfig.model;
-            if (fileConfig.apiKey) this.config.apiKey = fileConfig.apiKey;
+            // Never load API keys from file config to avoid accidental plaintext secret persistence.
             if (fileConfig.baseUrl) this.config.baseUrl = fileConfig.baseUrl;
             if (fileConfig.commitFormat) this.config.commitFormat = fileConfig.commitFormat;
             if (fileConfig.maxSubjectLength) this.config.maxSubjectLength = fileConfig.maxSubjectLength;

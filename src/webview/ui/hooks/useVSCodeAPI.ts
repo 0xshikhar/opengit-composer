@@ -23,7 +23,7 @@ function getVSCodeAPI(): VSCodeAPI {
     } else {
         // Mock for development
         vscodeApi = {
-            postMessage: (msg: any) => console.log('[Mock postMessage]', msg),
+            postMessage: (_msg: WebviewToHostMessage) => console.log('[Mock postMessage]'),
             getState: () => ({}),
             setState: () => { },
         };

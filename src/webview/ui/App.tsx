@@ -70,11 +70,10 @@ export default function App() {
 
     // Listen for messages from the extension host
     useEffect(() => {
-        const unsub = onMessage((message: HostToWebviewMessage) => {
-            const payload = message as HostToWebviewMessage & Record<string, any>;
-            switch (payload.command) {
+        const unsub = onMessage((message: HostToWebviewMessage & Record<string, any>) => {
+            switch (message.command) {
                 case 'dataLoaded':
-                    if (payload.data?.resetSession) {
+                    if (message.data?.resetSession) {
                         setDrafts([], null, null, null, null);
                         useCommitStore.getState().selectDraft(null);
                         useCommitStore.getState().selectFile(null);
@@ -83,20 +82,20 @@ export default function App() {
                         setDrafts([], null, null, null, null);
                         setActiveView('tree');
                     }
-                    setStagedFiles(payload.data?.staged || []);
-                    setUnstagedFiles(payload.data?.unstaged || []);
-                    if (payload.data?.privacyPreview) {
-                        setPrivacyPreview(payload.data.privacyPreview);
+                    setStagedFiles(message.data?.staged || []);
+                    setUnstagedFiles(message.data?.unstaged || []);
+                    if (message.data?.privacyPreview) {
+                        setPrivacyPreview(message.data.privacyPreview);
                     }
                     setError(null);
                     setDiagnostics(null);
-                    if (payload.data?.providerConfig) {
-                        setProviderConfig(payload.data.providerConfig);
+                    if (message.data?.providerConfig) {
+                        setProviderConfig(message.data.providerConfig);
                     }
                     if (bootstrap.autoCompose && !autoComposeTriggered.current) {
                         autoComposeTriggered.current = true;
                         composeInCurrentView({
-                            ...(payload.data?.providerConfig || {}),
+                            ...(message.data?.providerConfig || {}),
                             ...(bootstrap.providerConfig || {}),
                         });
                     }
@@ -109,33 +108,33 @@ export default function App() {
 
                 case 'composed':
                     setDrafts(
-                        payload.drafts || [],
-                        payload.reasoning,
-                        payload.summary || null,
-                        payload.snapshot || null,
-                        payload.meta || null
+                        message.drafts || [],
+                        message.reasoning,
+                        message.summary || null,
+                        message.snapshot || null,
+                        message.meta || null
                     );
                     setLoading(false);
                     setActiveView('compose');
                     setDiagnostics(null);
-                    if ((payload.drafts || []).length > 0) {
-                        const firstId = payload.drafts[0].id;
+                    if ((message.drafts || []).length > 0) {
+                        const firstId = message.drafts[0].id;
                         useCommitStore.getState().selectDraft(firstId);
                     }
                     break;
 
                 case 'triggerCompose':
-                    composeInCurrentView(payload.providerConfig || bootstrap.providerConfig || {});
+                    composeInCurrentView(message.providerConfig || bootstrap.providerConfig || {});
                     break;
 
                 case 'commitSuccess':
-                    markCommitted(payload.draftId);
+                    markCommitted(message.draftId);
                     setCommitting(false);
                     break;
 
                 case 'commitProgress':
                     setCommitting(true);
-                    setCommitProgress(payload.progress);
+                    setCommitProgress(message.progress);
                     break;
 
                 case 'commitAllDone':
@@ -144,13 +143,13 @@ export default function App() {
                     break;
 
                 case 'error':
-                    setError(payload.error || null);
+                    setError(message.error || null);
                     setLoading(false);
                     setCommitting(false);
                     break;
                 case 'connectionTested':
-                    if (payload.result) {
-                        setConnectionTest(payload.result);
+                    if (message.result) {
+                        setConnectionTest(message.result);
                     }
                     break;
             }
@@ -196,11 +195,6 @@ export default function App() {
     };
 
     const pendingCount = drafts.filter(d => d.state !== 'committed').length;
-
-    // Determine if we should show the setup wizard
-    const hasGitRepo = stagedFiles.length > 0 || unstagedFiles.length > 0;
-    const hasStagedChanges = stagedFiles.length > 0;
-    const providerConfigured = Boolean(providerConfig.apiKey) && providerConfig.provider !== 'openai';
 
     return (
         <div className="git-composer">

@@ -287,7 +287,13 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     private _setWebviewMessageListener(webview: vscode.Webview, source: WebviewSource) {
         webview.onDidReceiveMessage(async (message: WebviewToHostMessage | unknown) => {
             if (!isWebviewToHostMessage(message)) {
-                Logger.warn('CommitComposerProvider: Ignoring unknown webview message', { source, message });
+                Logger.warn('CommitComposerProvider: Ignoring unknown webview message', {
+                    source,
+                    hasPayload: message !== null && typeof message === 'object',
+                    messageType: message && typeof message === 'object'
+                        ? String((message as { command?: unknown }).command || 'unknown')
+                        : typeof message,
+                });
                 return;
             }
             Logger.debug('CommitComposerProvider: Message received', { source, command: message.command });

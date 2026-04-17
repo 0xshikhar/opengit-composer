@@ -122,22 +122,26 @@ export class CommitComposerPanel {
         this._panel.webview.onDidReceiveMessage(
             async (message: WebviewToHostMessage | unknown) => {
                 if (!isWebviewToHostMessage(message)) {
-                    Logger.warn('CommitComposerPanel: Ignoring unknown webview message', { message });
+                    Logger.warn('CommitComposerPanel: Ignoring unknown webview message', {
+                        hasPayload: message !== null && typeof message === 'object',
+                        messageType: message && typeof message === 'object'
+                            ? String((message as { command?: unknown }).command || 'unknown')
+                            : typeof message,
+                    });
                     return;
                 }
 
                 Logger.debug('CommitComposerPanel: Received message from webview', { command: message.command });
 
-                const payload = message as WebviewToHostMessage & Record<string, any>;
-                switch (payload.command) {
+                switch (message.command) {
                     case 'loadData':
                         await this.loadChanges();
                         break;
                     case 'generate':
-                        await this.handleGenerate(payload.providerConfig);
+                        await this.handleGenerate(message.providerConfig);
                         break;
                     case 'commit':
-                        await this.handleCommit(payload.group as CommitGroup);
+                        await this.handleCommit(message.group as CommitGroup);
                         break;
                 }
             },

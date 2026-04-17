@@ -5,6 +5,7 @@ import * as os from 'os';
 
 suite('ConfigLoader Test Suite', () => {
     const testWorkspace = path.join(os.tmpdir(), 'git-composer-test-' + Date.now());
+    const originalCwd = process.cwd();
     
     setup(() => {
         if (!fs.existsSync(testWorkspace)) {
@@ -13,6 +14,7 @@ suite('ConfigLoader Test Suite', () => {
     });
     
     teardown(() => {
+        process.chdir(originalCwd);
         if (fs.existsSync(testWorkspace)) {
             const configPath = path.join(testWorkspace, '.gitcomposer.json');
             if (fs.existsSync(configPath)) {
@@ -39,27 +41,36 @@ suite('ConfigLoader Test Suite', () => {
         const configPath = path.join(testWorkspace, '.gitcomposer.json');
         fs.writeFileSync(configPath, JSON.stringify({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-20250514'
+            model: 'claude-sonnet-4-20250514',
         }));
-        
-        // Clear require cache to get fresh instance
-        delete require.cache[require.resolve('../../core/configLoader')];
-        
-        // Note: This test would need actual vscode mocking in integration tests
-        // Unit test validates the structure only
-        assert.ok(true, 'Config file structure validated');
-    });
 
-    test('should not save apiKey to file for security', () => {
+        process.chdir(testWorkspace);
+        delete require.cache[require.resolve('../../core/configLoader')];
         const { ConfigLoader } = require('../../core/configLoader');
         const loader = new ConfigLoader();
-        
-        // Verify apiKey is filtered out in save logic
-        const configWithKey = { provider: 'openai', apiKey: 'secret-key', model: 'gpt-4o' };
-        
-        // The saveToFile method should not include apiKey
-        // This is validated by the implementation
-        assert.ok(true, 'Security check verified in implementation');
+        const config = loader.getConfig();
+
+        assert.strictEqual(config.provider, 'anthropic');
+        assert.strictEqual(config.model, 'claude-sonnet-4-20250514');
+    });
+
+    test('should ignore apiKey when loading file config', () => {
+        const configPath = path.join(testWorkspace, '.gitcomposer.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            provider: 'openai',
+            model: 'gpt-4o',
+            apiKey: 'file-secret',
+        }));
+
+        process.chdir(testWorkspace);
+        delete require.cache[require.resolve('../../core/configLoader')];
+        const { ConfigLoader } = require('../../core/configLoader');
+        const loader = new ConfigLoader();
+        const config = loader.getConfig();
+
+        assert.strictEqual(config.provider, 'openai');
+        assert.strictEqual(config.model, 'gpt-4o');
+        assert.strictEqual(config.apiKey, '');
     });
 
     test('should validate commit format options', () => {

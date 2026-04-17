@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { applyPrivacyPolicyToChanges } from './privacyPolicy';
 import { FileClassifier } from './parser/fileClassifier';
 import { describeProviderError } from '../ai/providers/providerUtils';
-import { isLocalProvider } from '../utils/constant';
+import { isLocalProvider, resolveProviderHostAndModel } from '../utils/constant';
 
 export interface ComposeProviderConfig {
     provider: string;
@@ -190,17 +190,20 @@ export class Orchestrator {
     } {
         const provider = providerConfig.provider || config.provider;
         const apiKey = providerConfig.apiKey || config.apiKey || '';
+        const resolved = resolveProviderHostAndModel(
+            {
+                provider,
+                model: config.model,
+                baseUrl: config.baseUrl,
+                ollamaHost: config.ollamaHost,
+                lmStudioHost: config.lmStudioHost,
+            },
+            AIProviderFactory.getDefaultModel(provider)
+        );
         const model = isLocalProvider(provider)
-            ? (providerConfig.model || '')
-            : (providerConfig.model || config.model || AIProviderFactory.getDefaultModel(provider));
-        const baseUrl =
-            providerConfig.baseUrl ||
-            config.baseUrl ||
-            (provider === 'ollama'
-                ? config.ollamaHost
-                : provider === 'lmstudio'
-                    ? config.lmStudioHost
-                    : undefined);
+            ? (providerConfig.model || resolved.model)
+            : (providerConfig.model || resolved.model);
+        const baseUrl = providerConfig.baseUrl || resolved.baseUrl;
 
         if (!isLocalProvider(provider) && !apiKey) {
             throw new Error(

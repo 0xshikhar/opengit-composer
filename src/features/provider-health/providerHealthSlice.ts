@@ -5,7 +5,7 @@ import { OllamaProvider } from '../../ai/providers/ollama';
 import { ConfigLoader } from '../../core/configLoader';
 import { KeyManager } from '../../core/keyManager';
 import { ComposeProviderConfig } from '../../core/orchestrator';
-import { isLocalProvider } from '../../utils/constant';
+import { isLocalProvider, resolveProviderHostAndModel } from '../../utils/constant';
 
 export interface ProviderHealthSliceDeps {
     keyManager?: KeyManager;
@@ -116,7 +116,7 @@ export async function testProviderConnection(
     webview: vscode.Webview
 ): Promise<void> {
     const resolvedConfig = providerConfig || getDefaultProviderConfig(deps.configLoader);
-    const model = isLocalProvider(resolvedConfig.provider) ? '' : (resolvedConfig.model || '');
+    const model = resolvedConfig.model || '';
     const apiKey = await resolveApiKeyForProvider(deps, resolvedConfig.provider, resolvedConfig.apiKey);
     const provider = AIProviderFactory.create(resolvedConfig.provider, {
         apiKey,
@@ -155,7 +155,7 @@ export async function saveProviderPreference(
 
         const vscodeApi = require('vscode');
         const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
-        const resolvedModel = isLocalProvider(provider) ? '' : model;
+        const resolvedModel = model;
 
         await vsConfig.update('aiProvider', provider, true);
         await vsConfig.update('model', resolvedModel, true);
@@ -183,14 +183,14 @@ export async function saveProviderPreference(
 
 function getDefaultProviderConfig(configLoader: ConfigLoader): ComposeProviderConfig {
     const config = configLoader.getConfig();
+    const resolved = resolveProviderHostAndModel(
+        config,
+        AIProviderFactory.getDefaultModel(config.provider)
+    );
     return {
         provider: config.provider,
-        model: isLocalProvider(config.provider) ? '' : config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama'
-            ? config.ollamaHost
-            : config.provider === 'lmstudio'
-                ? config.lmStudioHost
-                : undefined),
+        model: resolved.model,
+        baseUrl: resolved.baseUrl,
     };
 }
 

@@ -27,7 +27,7 @@ export class AIProviderFactory {
             case 'ollama':
                 return new OllamaProvider(config);
             default:
-                throw new Error(`Unknown AI provider: ${providerName}. Supported: openai, anthropic, gemini, lmstudio, kimi, ollama`);
+                throw new Error(`Unknown AI provider: ${providerName}. Supported: ${AIProviderFactory.getSupportedProviders().join(', ')}`);
         }
     }
 

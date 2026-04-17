@@ -55,10 +55,10 @@ export default function AIControls() {
     const handleProviderChange = (provider: string) => {
         const nextBaseUrl = isLocalProvider(provider)
             ? getProviderBaseUrl(provider) || ''
-            : providerConfig.baseUrl || '';
+            : '';
         setProviderConfig({
             provider,
-            model: '',
+            model: isLocalProvider(provider) ? providerConfig.model : '',
             apiKey: '',
             baseUrl: isLocalProvider(provider) ? nextBaseUrl : undefined,
         });
@@ -66,7 +66,7 @@ export default function AIControls() {
         setNewKey('');
         setNewKeyLabel('');
         // Save preference immediately when switching provider
-        saveProviderPreference(provider, '', nextBaseUrl);
+        saveProviderPreference(provider, isLocalProvider(provider) ? providerConfig.model : '', nextBaseUrl);
     };
 
     const handleModelChange = (model: string) => {

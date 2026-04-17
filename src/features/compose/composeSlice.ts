@@ -5,7 +5,7 @@ import { KeyManager } from '../../core/keyManager';
 import { Orchestrator, ComposeProviderConfig } from '../../core/orchestrator';
 import { Logger } from '../../utils/logger';
 import { buildPrivacyPreview } from '../privacy/privacyService';
-import { isLocalProvider } from '../../utils/constant';
+import { isLocalProvider, resolveProviderHostAndModel } from '../../utils/constant';
 
 interface ComposeMessageError extends Error {
     code?: string;
@@ -29,10 +29,14 @@ export async function loadComposeData(
     const staged = await deps.orchestrator.getStagedChanges();
     const unstaged = await deps.orchestrator.getUnstagedChanges();
     const config = deps.configLoader.getConfig();
+    const resolvedProviderConfig = resolveProviderHostAndModel(
+        config,
+        AIProviderFactory.getDefaultModel(config.provider)
+    );
     const providerConfig = {
         provider: config.provider,
-        model: isLocalProvider(config.provider) ? '' : config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama' ? config.ollamaHost : config.provider === 'lmstudio' ? config.lmStudioHost : undefined),
+        model: resolvedProviderConfig.model,
+        baseUrl: resolvedProviderConfig.baseUrl,
     };
     const privacy = buildPrivacyPreview(staged, config.excludePatterns, config.redactPatterns);
 
@@ -135,7 +139,10 @@ export async function runComposePreflight(
     const explicitApiKey = (providerConfig.apiKey || '').trim();
     const configuredApiKey = (config.apiKey || '').trim();
     const providerModel = (providerConfig.model || '').trim();
-    const configuredModel = isLocalProvider(provider) ? '' : (config.model || '').trim();
+    const configuredModel = resolveProviderHostAndModel(
+        config,
+        AIProviderFactory.getDefaultModel(provider)
+    ).model.trim();
     const model = providerModel || configuredModel;
 
     if (!isLocalProvider(provider)) {
@@ -156,11 +163,7 @@ export async function runComposePreflight(
     const providerInstance = AIProviderFactory.create(provider, {
         apiKey: resolvedApiKey,
         model,
-        baseUrl: providerConfig.baseUrl || config.baseUrl || (provider === 'ollama'
-            ? config.ollamaHost
-            : provider === 'lmstudio'
-                ? config.lmStudioHost
-                : undefined),
+        baseUrl: providerConfig.baseUrl || resolveProviderHostAndModel(config, AIProviderFactory.getDefaultModel(provider)).baseUrl,
     });
 
     const reachable = await providerInstance.validateApiKey();
@@ -209,13 +212,13 @@ export async function resolveApiKeyForProvider(
 
 export function getDefaultProviderConfig(configLoader: ConfigLoader): ComposeProviderConfig {
     const config = configLoader.getConfig();
+    const resolved = resolveProviderHostAndModel(
+        config,
+        AIProviderFactory.getDefaultModel(config.provider)
+    );
     return {
         provider: config.provider,
-        model: isLocalProvider(config.provider) ? '' : config.model,
-        baseUrl: config.baseUrl || (config.provider === 'ollama'
-            ? config.ollamaHost
-            : config.provider === 'lmstudio'
-                ? config.lmStudioHost
-                : undefined),
+        model: resolved.model,
+        baseUrl: resolved.baseUrl,
     };
 }

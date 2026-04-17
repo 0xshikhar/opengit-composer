@@ -16,6 +16,8 @@ import {
 import { loadComposeData } from '../features/compose/composeSlice';
 import { postError } from '../features/support/errorMapper';
 import { createWebviewCommandRouter } from './host/webviewCommandRouter';
+import { resolveProviderHostAndModel } from '../utils/constant';
+import { AIProviderFactory } from '../ai/aiProviderFactory';
 
 type WebviewSource = 'sidebar' | 'panel';
 
@@ -161,14 +163,14 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
     private getDefaultProviderConfig(): ComposeProviderConfig {
         const config = this.getConfigLoader().getConfig();
+        const resolved = resolveProviderHostAndModel(
+            config,
+            AIProviderFactory.getDefaultModel(config.provider)
+        );
         return {
             provider: config.provider,
-            model: config.provider === 'ollama' || config.provider === 'lmstudio' ? '' : config.model,
-            baseUrl: config.baseUrl || (config.provider === 'ollama'
-                ? config.ollamaHost
-                : config.provider === 'lmstudio'
-                    ? config.lmStudioHost
-                    : undefined),
+            model: resolved.model,
+            baseUrl: resolved.baseUrl,
         };
     }
 

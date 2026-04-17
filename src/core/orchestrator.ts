@@ -26,6 +26,7 @@ export interface ComposeSnapshot {
     generatedAt: number;
     fileCount: number;
     paths: string[];
+    excludePatterns?: string[];
 }
 
 export interface ComposeMeta {
@@ -149,7 +150,7 @@ export class Orchestrator {
             composeResult.summary = `Prepared ${composeResult.drafts.length} draft commits (${multiDraftNormalization.strategy}).`;
         }
 
-        const snapshot = this.buildComposeSnapshot(eligibleChanges);
+        const snapshot = this.buildComposeSnapshot(eligibleChanges, config.excludePatterns);
         const meta: ComposeMeta = {
             usedFallback: composeResult.meta?.usedFallback ?? false,
             fallbackReason: composeResult.meta?.fallbackReason,
@@ -603,7 +604,7 @@ export class Orchestrator {
         return groups;
     }
 
-    private buildComposeSnapshot(changes: FileChange[]): ComposeSnapshot {
+    private buildComposeSnapshot(changes: FileChange[], excludePatterns?: string[]): ComposeSnapshot {
         const sorted = [...changes].sort((left, right) => left.path.localeCompare(right.path));
         const fingerprint = sorted
             .map(change => `${change.path}|${change.changeType}|${change.additions}|${change.deletions}`)
@@ -614,6 +615,7 @@ export class Orchestrator {
             generatedAt: Date.now(),
             fileCount: sorted.length,
             paths: sorted.map(change => change.path),
+            excludePatterns: excludePatterns ? [...excludePatterns] : undefined,
         };
     }
 

@@ -24,7 +24,7 @@ export async function assertSnapshotFresh(
     const currentStaged = await getCurrentStagedChanges();
     const config = configLoader.getConfig();
     const eligible = applyPrivacyPolicyToChanges(currentStaged, {
-        excludePatterns: config.excludePatterns,
+        excludePatterns: snapshot.excludePatterns ?? config.excludePatterns,
         redactPatterns: [],
     }).changes;
 

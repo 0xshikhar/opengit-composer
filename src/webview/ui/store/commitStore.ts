@@ -46,6 +46,7 @@ export interface ComposeSnapshot {
     generatedAt: number;
     fileCount: number;
     paths: string[];
+    excludePatterns?: string[];
 }
 
 export interface ComposeMeta {

@@ -18,7 +18,11 @@ export type ProviderName =
     | 'ollama';
 
 export function isLocalProvider(providerId: string): boolean {
-    return providerId === 'ollama' || providerId === 'lmstudio';
+    return PROVIDERS.some(provider =>
+        provider.id === providerId &&
+        provider.requiresApiKey === false &&
+        provider.baseUrl === 'baseUrl'
+    );
 }
 
 export const PROVIDERS: ProviderInfo[] = [
@@ -122,4 +126,36 @@ export function getProviderBaseUrl(providerId: string): string | undefined {
 export function requiresApiKey(providerId: string): boolean {
     const provider = getProviderInfo(providerId);
     return provider?.requiresApiKey ?? true;
+}
+
+export interface ProviderHostAndModelSelection {
+    model: string;
+    baseUrl?: string;
+}
+
+export interface ProviderHostAndModelInput {
+    provider: string;
+    model?: string;
+    baseUrl?: string;
+    ollamaHost?: string;
+    lmStudioHost?: string;
+}
+
+export function resolveProviderHostAndModel(
+    input: ProviderHostAndModelInput,
+    defaultModel: string = ''
+): ProviderHostAndModelSelection {
+    const model = isLocalProvider(input.provider)
+        ? (input.model || '')
+        : (input.model || defaultModel);
+    const baseUrl = input.provider === 'ollama'
+        ? input.ollamaHost
+        : input.provider === 'lmstudio'
+            ? input.lmStudioHost
+            : input.baseUrl;
+
+    return {
+        model,
+        baseUrl,
+    };
 }

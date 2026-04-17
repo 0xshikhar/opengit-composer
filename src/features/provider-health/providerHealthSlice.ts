@@ -125,6 +125,20 @@ export async function testProviderConnection(
     });
 
     const authOk = await provider.validateApiKey();
+    if (!authOk) {
+        await webview.postMessage({
+            command: 'connectionTested',
+            result: {
+                provider: resolvedConfig.provider,
+                available: false,
+                modelAvailable: false,
+                message: 'Provider connection failed.',
+                models: [],
+            },
+        });
+        return;
+    }
+
     const modelCheck = await provider.validateModelAvailability();
 
     await webview.postMessage({
@@ -133,11 +147,9 @@ export async function testProviderConnection(
             provider: resolvedConfig.provider,
             available: authOk,
             modelAvailable: modelCheck.available,
-            message: authOk
-                ? (modelCheck.available
-                    ? 'Connection and model check passed.'
-                    : modelCheck.reason || 'Connection passed, but model availability is uncertain.')
-                : 'Provider connection failed.',
+            message: modelCheck.available
+                ? 'Connection and model check passed.'
+                : modelCheck.reason || 'Connection passed, but model availability is uncertain.',
             models: modelCheck.models,
         },
     });

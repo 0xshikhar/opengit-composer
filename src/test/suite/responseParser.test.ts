@@ -93,6 +93,28 @@ suite('ResponseParser Test Suite', () => {
         );
     });
 
+    test('should preserve breaking change markers when normalizing repeated prefixes', () => {
+        const changes = [change('src/core/b.ts')];
+        const response = JSON.stringify({
+            groups: [
+                {
+                    files: ['src/core/b.ts'],
+                    type: 'feat',
+                    scope: 'session',
+                    subject: 'feat!: implement user session management',
+                    confidence: 90,
+                },
+            ],
+        });
+
+        const parsed = ResponseParser.parseGroupingResponse(response, changes);
+
+        assert.strictEqual(
+            parsed.groups[0].message,
+            'feat(session)!: implement user session management'
+        );
+    });
+
     test('should mark parser fallback metadata when response is unparseable', () => {
         const changes = [change('src/d.ts'), change('src/e.ts')];
         const parsed = ResponseParser.parseGroupingResponse('totally-not-json', changes);

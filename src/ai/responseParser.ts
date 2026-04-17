@@ -458,6 +458,7 @@ export class ResponseParser {
         }
 
         let remainder = parsedPrefix.remainder.trimStart();
+        let breaking = parsedPrefix.breaking || false;
         while (true) {
             const nestedPrefix = this.parseConventionalPrefix(remainder);
             if (!nestedPrefix) {
@@ -474,14 +475,17 @@ export class ResponseParser {
                 break;
             }
 
+            breaking = breaking || nestedPrefix.breaking;
             remainder = nestedPrefix.remainder.trimStart();
         }
 
-        return remainder ? `${parsedPrefix.prefix} ${remainder}` : parsedPrefix.prefix;
+        const scope = parsedPrefix.scope ? `(${parsedPrefix.scope})` : '';
+        const prefix = `${parsedPrefix.type}${scope}${breaking ? '!' : ''}:`;
+        return remainder ? `${prefix} ${remainder}` : prefix;
     }
 
-    private static parseConventionalPrefix(subject: string): { type: string; scope?: string; prefix: string; remainder: string } | null {
-        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?!?:\s*/i);
+    private static parseConventionalPrefix(subject: string): { type: string; scope?: string; breaking: boolean; prefix: string; remainder: string } | null {
+        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?(!)?:\s*/i);
         if (!match) {
             return null;
         }
@@ -489,6 +493,7 @@ export class ResponseParser {
         return {
             type: match[1].toLowerCase(),
             scope: match[2]?.toLowerCase(),
+            breaking: Boolean(match[3]),
             prefix: match[0].trimEnd(),
             remainder: subject.slice(match[0].length),
         };

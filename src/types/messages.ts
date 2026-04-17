@@ -56,6 +56,8 @@ export type ComposerErrorCode =
     | 'TLS_ERROR'
     | 'ONLY_EXCLUDED_FILES'
     | 'STAGED_SNAPSHOT_STALE'
+    | 'NO_STAGED_CHANGES'
+    | 'COMPOSE_ERROR'
     | 'UNKNOWN_ERROR';
 
 export interface ComposerErrorAction {

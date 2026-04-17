@@ -40,6 +40,17 @@ export function mapErrorToMessage(
         };
     }
 
+    if (/No staged changes/i.test(message)) {
+        return {
+            code: 'NO_STAGED_CHANGES',
+            severity: 'warning',
+            recoverable: true,
+            message: 'No staged changes are available. Stage files and try again.',
+            action: { label: 'Refresh', command: 'refresh' },
+            diagnostics,
+        };
+    }
+
     if (code === 'STAGED_SNAPSHOT_STALE') {
         return {
             code,
@@ -186,6 +197,7 @@ function severityForCode(code: ComposerErrorCode): ComposerErrorSeverity {
         case 'RATE_LIMIT':
         case 'ONLY_EXCLUDED_FILES':
         case 'STAGED_SNAPSHOT_STALE':
+        case 'NO_STAGED_CHANGES':
             return 'warning';
         default:
             return 'error';

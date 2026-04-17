@@ -90,15 +90,17 @@ export async function requestWithRetry<T>(
                 throw error;
             }
 
-            const backoffMs = Math.min(4000, 400 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 120);
+            const computedBackoffMs = Math.min(4000, 400 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 120);
             const retryAfterMs = axios.isAxiosError(error)
                 ? parseRetryAfter(error.response?.headers?.['retry-after'])
                 : undefined;
-            const delayMs = typeof retryAfterMs === 'number' ? Math.max(backoffMs, retryAfterMs) : backoffMs;
+            const delayMs = typeof retryAfterMs === 'number' ? Math.max(computedBackoffMs, retryAfterMs) : computedBackoffMs;
             Logger.warn(`${label}: transient AI request failure; retrying`, {
                 attempt,
                 maxAttempts,
-                backoffMs: delayMs,
+                computedBackoffMs,
+                retryAfterMs,
+                delayMs,
                 code: axios.isAxiosError(error) ? error.code : undefined,
                 status: axios.isAxiosError(error) ? error.response?.status : undefined,
                 retryAfter: axios.isAxiosError(error) ? error.response?.headers?.['retry-after'] : undefined,

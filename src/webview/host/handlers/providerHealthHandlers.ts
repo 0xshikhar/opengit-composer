@@ -30,12 +30,25 @@ export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps): W
             typeof message.label === 'string' ? message.label : undefined,
             webview
         ),
-        removeKey: async (message, webview) => removeKey(
-            deps,
-            String(message.provider || ''),
-            Number(message.keyIndex ?? -1),
-            webview
-        ),
+        removeKey: async (message, webview) => {
+            const parsed = message.keyIndex !== undefined ? parseInt(String(message.keyIndex), 10) : NaN;
+            if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+                await webview.postMessage({
+                    command: 'keyRemoved',
+                    provider: String(message.provider || ''),
+                    success: false,
+                    error: 'Invalid key index.',
+                });
+                return;
+            }
+
+            return removeKey(
+                deps,
+                String(message.provider || ''),
+                parsed,
+                webview
+            );
+        },
         resetKeys: async (message, webview) => resetKeys(
             deps,
             String(message.provider || ''),

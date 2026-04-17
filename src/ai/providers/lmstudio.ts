@@ -121,31 +121,34 @@ export class LMStudioProvider extends AIProvider {
         const url = `${this.baseUrl}/chat/completions`;
 
         const executeRequest = async (useResponseFormat: boolean): Promise<any> => {
+            const requestBody: Record<string, unknown> = {
+                model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert at analyzing code changes and organizing them into logical commits.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: this.config.temperature ?? 0.2,
+                max_tokens: this.config.maxTokens ?? 4000,
+            };
+
             if (mode === 'json' && useResponseFormat) {
-                Logger.info('LMStudioProvider: Skipping response_format for compatibility', {
+                Logger.info('LMStudioProvider: Trying response_format for compatibility', {
                     model,
                     baseUrl: this.baseUrl,
                 });
+                requestBody.response_format = { type: 'json_object' };
             }
             const response = await requestWithRetry(
                 'LMStudioProvider.makeRequest',
                 () => axios.post(
                     url,
-                    {
-                        model,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'You are an expert at analyzing code changes and organizing them into logical commits.'
-                            },
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ],
-                        temperature: this.config.temperature || 0.2,
-                        max_tokens: this.config.maxTokens || 4000,
-                    },
+                    requestBody,
                     {
                         headers: { 'Content-Type': 'application/json' },
                         timeout: 120000,

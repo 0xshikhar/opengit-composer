@@ -184,6 +184,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                 openComposerPanel: (providerConfig, autoCompose) => this.openComposerPanel(providerConfig, autoCompose),
                 openWorkspace: () => this.openWorkspace(),
                 refreshVisibleViews: () => this.refreshAllVisibleViews(),
+                ensureWorkspacePath: () => this.ensureWorkspacePath(true),
             });
         }
         return this._messageRouter;
@@ -266,6 +267,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     private resetWorkspaceBindings(): void {
         this._orchestrator = undefined;
         this._commitExecutor = undefined;
+        this._messageRouter = undefined;
     }
 
     private async openWorkspace(): Promise<void> {

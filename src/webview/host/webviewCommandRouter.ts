@@ -15,6 +15,7 @@ export interface WebviewCommandRouterDeps {
     openComposerPanel: (providerConfig?: ComposeProviderConfig, autoCompose?: boolean) => Promise<void>;
     openWorkspace: () => Promise<void>;
     refreshVisibleViews: () => Promise<void>;
+    ensureWorkspacePath?: () => Promise<string | undefined>;
 }
 
 type CommandHandler = (message: WebviewToHostMessage, webview: vscode.Webview) => Promise<void>;
@@ -84,6 +85,7 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
             keyManager: deps.keyManager,
             openComposerPanel: deps.openComposerPanel,
             openWorkspace: deps.openWorkspace,
+            ensureWorkspacePath: deps.ensureWorkspacePath || (async () => undefined),
         }),
     };
 }

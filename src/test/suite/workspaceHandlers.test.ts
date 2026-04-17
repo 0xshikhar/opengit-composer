@@ -38,6 +38,7 @@ suite('Workspace Handlers Test Suite', () => {
             } as any),
             openComposerPanel: async () => {},
             openWorkspace: async () => {},
+            ensureWorkspacePath: async () => '/repo',
         });
 
         await handlers.refresh?.({ command: 'refresh' } as any, webview);

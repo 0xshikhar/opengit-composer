@@ -12,10 +12,15 @@ export interface WorkspaceHandlerDeps {
     keyManager?: KeyManager;
     openComposerPanel: (providerConfig?: ComposeProviderConfig, autoCompose?: boolean) => Promise<void>;
     openWorkspace: () => Promise<void>;
+    ensureWorkspacePath?: () => Promise<string | undefined>;
 }
 
 export function createWorkspaceHandlers(deps: WorkspaceHandlerDeps): WebviewCommandRegistry {
     const loadChanges = async (webview: vscode.Webview, resetSession: boolean = false) => {
+        const workspacePath = await (deps.ensureWorkspacePath || (async () => undefined))();
+        if (!workspacePath) {
+            return;
+        }
         await loadComposeData(
             {
                 orchestrator: deps.getOrchestrator(),

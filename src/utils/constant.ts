@@ -52,8 +52,11 @@ export const PROVIDERS: ProviderInfo[] = [
         models: [
             'gemini-3-pro',
             'gemini-3-flash',
+            'gemini-3-pro',
+            'gemini-3-flash',
             'gemini-2.5-flash',
             'gemini-2.5-pro',
+            'gemini-2.5-flash-lite',
             'gemini-2.5-flash-lite',
         ],
         baseUrl: 'apiKey',
@@ -119,6 +122,55 @@ export function getProviderModelOptions(providerId: string): readonly string[] {
     return getProviderModels(providerId);
 }
 
+/**
+ * Pre-validates if a model name is potentially valid for a provider.
+ * For cloud providers with fixed model lists, checks against known models.
+ * For local providers (Ollama, LM Studio), always returns valid (needs runtime check).
+ * Returns { valid: true } or { valid: false, reason: string, validModels: string[] }
+ */
+export function preValidateModelFormat(
+    providerId: string,
+    model: string
+): { valid: boolean; reason?: string; validModels?: string[] } {
+    const trimmedModel = (model || '').trim();
+
+    // Empty model is valid (will use default)
+    if (!trimmedModel) {
+        return { valid: true };
+    }
+
+    // Local providers need runtime validation (can't know available models without API call)
+    if (isLocalProvider(providerId)) {
+        return { valid: true };
+    }
+
+    // For cloud providers with fixed model lists, check against known models
+    const validModels = getProviderModels(providerId);
+    if (validModels.length === 0) {
+        // Unknown provider or provider with dynamic models - defer to runtime validation
+        return { valid: true };
+    }
+
+    // Check if model matches any known model (with normalization)
+    const normalizedInput = trimmedModel.toLowerCase().replace(/[-_.]/g, '');
+    const isValid = validModels.some(validModel => {
+        const normalizedValid = validModel.toLowerCase().replace(/[-_.]/g, '');
+        return normalizedValid === normalizedInput ||
+               normalizedValid.includes(normalizedInput) ||
+               normalizedInput.includes(normalizedValid);
+    });
+
+    if (!isValid) {
+        return {
+            valid: false,
+            reason: `Model "${trimmedModel}" is not in the list of known models for ${getProviderDisplayName(providerId)}.`,
+            validModels,
+        };
+    }
+
+    return { valid: true };
+}
+
 export function getProviderBaseUrl(providerId: string): string | undefined {
     const provider = getProviderInfo(providerId);
     return provider?.defaultBaseUrl;
@@ -153,7 +205,9 @@ export function resolveProviderHostAndModel(
         : (input.model || defaultModel);
     const baseUrl = input.provider === 'ollama'
         ? (input.ollamaHost || getProviderBaseUrl('ollama'))
+        ? (input.ollamaHost || getProviderBaseUrl('ollama'))
         : input.provider === 'lmstudio'
+            ? (input.lmStudioHost || getProviderBaseUrl('lmstudio'))
             ? (input.lmStudioHost || getProviderBaseUrl('lmstudio'))
             : input.baseUrl;
 

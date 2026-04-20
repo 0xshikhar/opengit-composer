@@ -5,7 +5,7 @@ import { KeyManager } from '../../core/keyManager';
 import { Orchestrator, ComposeProviderConfig } from '../../core/orchestrator';
 import { Logger } from '../../utils/logger';
 import { buildPrivacyPreview } from '../privacy/privacyService';
-import { isLocalProvider, resolveProviderHostAndModel } from '../../utils/constant';
+import { isLocalProvider, preValidateModelFormat, resolveProviderHostAndModel } from '../../utils/constant';
 
 interface ComposeMessageError extends Error {
     code?: string;
@@ -179,6 +179,21 @@ export async function runComposePreflight(
     }
 
     const resolvedApiKey = await resolveApiKeyForProvider(deps, provider, explicitApiKey || configuredApiKey);
+
+    // Pre-validate model format before creating provider instance (efficiency optimization)
+    // This catches invalid models for cloud providers without making API calls
+    const modelPreCheck = preValidateModelFormat(provider, model);
+    if (!modelPreCheck.valid) {
+        const availableModels = modelPreCheck.validModels?.length
+            ? ` Available models: ${modelPreCheck.validModels.slice(0, 5).join(', ')}${modelPreCheck.validModels.length > 5 ? '...' : ''}.`
+            : '';
+        const error = new Error(
+            (modelPreCheck.reason || `Model "${model}" is not valid for provider "${provider}".`) + availableModels
+        ) as ComposeMessageError;
+        error.code = 'PRECHECK_MODEL_INVALID';
+        throw error;
+    }
+
     const providerInstance = AIProviderFactory.create(provider, {
         apiKey: resolvedApiKey,
         model,

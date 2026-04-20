@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../utils/logger';
+import { isLocalProvider } from '../utils/constant';
 
 export interface ComposerConfig {
     provider: string;
@@ -62,6 +63,9 @@ export class ConfigLoader {
 
         // Layer 2: .gitcomposer.json (overrides VS Code settings)
         this.loadFileConfig();
+
+        // Validate and sanitize to prevent provider/baseUrl mismatches
+        this.validateAndSanitizeConfig();
 
         this.loaded = true;
         Logger.info('ConfigLoader: Configuration loaded', {
@@ -181,6 +185,33 @@ export class ConfigLoader {
             Logger.info('ConfigLoader: Loaded .gitcomposer.json', { configPath });
         } catch (e) {
             Logger.warn('ConfigLoader: Failed to parse .gitcomposer.json', e);
+        }
+    }
+
+    /**
+     * Validates and sanitizes config to ensure baseUrl matches the provider type.
+     * Clears mismatched baseUrl to prevent connecting to wrong server.
+     */
+    private validateAndSanitizeConfig(): void {
+        const provider = this.config.provider;
+        const baseUrl = this.config.baseUrl;
+
+        if (!baseUrl) return;
+
+        // Check if baseUrl matches the provider type
+        const looksLikeOllama = baseUrl.includes('11434') || baseUrl.includes('/api');
+        const looksLikeLMStudio = baseUrl.includes('1234') || baseUrl.includes('/v1');
+
+        if (provider === 'ollama' && looksLikeLMStudio) {
+            Logger.warn('ConfigLoader: baseUrl looks like LM Studio but provider is Ollama, clearing baseUrl', { baseUrl });
+            this.config.baseUrl = undefined;
+        } else if (provider === 'lmstudio' && looksLikeOllama) {
+            Logger.warn('ConfigLoader: baseUrl looks like Ollama but provider is LM Studio, clearing baseUrl', { baseUrl });
+            this.config.baseUrl = undefined;
+        } else if (!isLocalProvider(provider) && (looksLikeOllama || looksLikeLMStudio)) {
+            // Cloud provider shouldn't have local baseUrl
+            Logger.warn('ConfigLoader: Cloud provider has local baseUrl, clearing baseUrl', { provider, baseUrl });
+            this.config.baseUrl = undefined;
         }
     }
 }

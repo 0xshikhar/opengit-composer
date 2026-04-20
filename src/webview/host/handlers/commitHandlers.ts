@@ -6,9 +6,20 @@ import { WebviewToHostMessage } from '../../../types/messages';
 import { WebviewCommandRegistry } from './types';
 import { Logger } from '../../../utils/logger';
 
-export interface CommitHandlerDeps extends CommitSliceDeps {}
+export interface CommitHandlerDeps {
+    getCommitExecutor: () => CommitSliceDeps['commitExecutor'];
+    getConfigLoader: () => CommitSliceDeps['configLoader'];
+    getCurrentStagedChanges: CommitSliceDeps['getCurrentStagedChanges'];
+    refreshVisibleViews: CommitSliceDeps['refreshVisibleViews'];
+}
 
 export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandRegistry {
+    const resolveCommitSliceDeps = (): CommitSliceDeps => ({
+        commitExecutor: deps.getCommitExecutor(),
+        configLoader: deps.getConfigLoader(),
+        getCurrentStagedChanges: deps.getCurrentStagedChanges,
+        refreshVisibleViews: deps.refreshVisibleViews,
+    });
     const resolveSnapshot = (message: WebviewToHostMessage) => message.snapshot as ComposeSnapshot | undefined;
     const isDraftCommit = (value: unknown): value is DraftCommit => {
         if (!value || typeof value !== 'object') return false;
@@ -42,7 +53,7 @@ export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandReg
             }
 
             return commitSingle(
-                deps,
+                resolveCommitSliceDeps(),
                 message.draft,
                 resolveSnapshot(message),
                 webview
@@ -67,7 +78,7 @@ export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandReg
             }
 
             return commitAll(
-                deps,
+                resolveCommitSliceDeps(),
                 message.drafts,
                 resolveSnapshot(message),
                 webview

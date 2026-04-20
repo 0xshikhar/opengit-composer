@@ -31,7 +31,7 @@ export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps): W
             webview
         ),
         removeKey: async (message, webview) => {
-            const parsed = message.keyIndex !== undefined ? parseInt(String(message.keyIndex), 10) : NaN;
+            const parsed = message.keyIndex !== undefined ? Number(message.keyIndex) : NaN;
             if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
                 await webview.postMessage({
                     command: 'keyRemoved',

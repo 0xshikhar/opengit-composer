@@ -64,14 +64,14 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
 
     return {
         compose: createComposeHandlers({
-            orchestrator: deps.getOrchestrator(),
-            configLoader: deps.getConfigLoader(),
+            getOrchestrator: () => deps.getOrchestrator(),
+            getConfigLoader: () => deps.getConfigLoader(),
             keyManager: deps.keyManager,
             openComposerPanel: deps.openComposerPanel,
         }),
         commit: createCommitHandlers({
-            commitExecutor: deps.getCommitExecutor(),
-            configLoader: deps.getConfigLoader(),
+            getCommitExecutor: () => deps.getCommitExecutor(),
+            getConfigLoader: () => deps.getConfigLoader(),
             getCurrentStagedChanges: () => deps.getOrchestrator().getStagedChanges(),
             refreshVisibleViews: deps.refreshVisibleViews,
         }),

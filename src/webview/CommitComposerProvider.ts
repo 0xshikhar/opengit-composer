@@ -49,6 +49,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
 
     public setKeyManager(keyManager: KeyManager) {
         this._keyManager = keyManager;
+        this._messageRouter = undefined;
     }
 
     public async openComposerPanel(providerConfig?: ComposeProviderConfig, autoCompose: boolean = true): Promise<void> {

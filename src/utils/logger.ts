@@ -35,7 +35,7 @@ export class Logger {
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const vscode = require('vscode');
-            this.outputChannel = vscode.window.createOutputChannel('Git Composer');
+            this.outputChannel = vscode.window.createOutputChannel('OpenGit Composer');
             this.debugEnabled = isDebugEnabled();
         } catch {
             // In a pure Node.js / test context vscode does not exist — use a console shim
@@ -161,7 +161,7 @@ export class Logger {
         this.initialize();
         this.writeLine('');
         this.writeLine('═'.repeat(60));
-        this.writeLine('DEBUG INFO - Git Composer Extension');
+        this.writeLine('DEBUG INFO - OpenGit Composer Extension');
         this.writeLine('═'.repeat(60));
         this.writeLine(`Debug Mode: ${this.debugEnabled ? 'ENABLED' : 'DISABLED'}`);
         this.writeLine(`Enable in: Settings > commitComposer.debugMode`);

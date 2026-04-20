@@ -5,7 +5,7 @@ import { Logger } from './utils/logger';
 
 export function activate(context: vscode.ExtensionContext) {
     Logger.initialize();
-    Logger.info('Git Composer extension activated');
+    Logger.info('OpenGit Composer extension activated');
 
     const keyManager = new KeyManager(context);
     const provider = new CommitComposerProvider(context.extensionUri, keyManager);
@@ -38,9 +38,9 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(autoComposeCommand, showDebugCommand, copyLogsCommand);
-    Logger.info('Git Composer commands registered');
+    Logger.info('OpenGit Composer commands registered');
 }
 
 export function deactivate() {
-    Logger.info('Git Composer extension deactivated');
+    Logger.info('OpenGit Composer extension deactivated');
 }

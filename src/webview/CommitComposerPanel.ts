@@ -168,9 +168,7 @@ export class CommitComposerPanel {
 
     private async handleGenerate(config: any) {
         try {
-            const model = config.provider === 'ollama' || config.provider === 'lmstudio'
-                ? ''
-                : config.model;
+            const model = config.model || '';
             Logger.info('CommitComposerPanel: Generating commits', {
                 provider: config.provider,
                 model

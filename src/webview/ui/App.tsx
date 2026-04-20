@@ -27,7 +27,16 @@ export default function App() {
     const bootstrap = useMemo(readBootstrapPayload, []);
     const isPanelMode = bootstrap.mode === 'panel';
     const autoComposeTriggered = useRef(false);
+    const composeInProgress = useRef(false);
     const logoUri = bootstrap.logoUri;
+
+    // Initialize provider config from bootstrap on mount to prevent showing wrong provider
+    useEffect(() => {
+        if (bootstrap.providerConfig) {
+            const { setProviderConfig } = useCommitStore.getState();
+            setProviderConfig(bootstrap.providerConfig);
+        }
+    }, [bootstrap.providerConfig]);
 
     const {
         stagedFiles,
@@ -92,12 +101,15 @@ export default function App() {
                     if (message.data?.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }
-                    if (bootstrap.autoCompose && !autoComposeTriggered.current) {
+                    if (bootstrap.autoCompose && !autoComposeTriggered.current && !composeInProgress.current) {
                         autoComposeTriggered.current = true;
+                        composeInProgress.current = true;
                         composeInCurrentView({
                             ...(message.data?.providerConfig || {}),
                             ...(bootstrap.providerConfig || {}),
                         });
+                        // Note: composeInCurrentView is synchronous (posts message)
+                        // The flag will be reset when 'composed' or 'error' message is received
                     }
                     break;
 
@@ -107,6 +119,7 @@ export default function App() {
                     break;
 
                 case 'composed':
+                    composeInProgress.current = false;
                     setDrafts(
                         message.drafts || [],
                         message.reasoning,
@@ -143,6 +156,7 @@ export default function App() {
                     break;
 
                 case 'error':
+                    composeInProgress.current = false;
                     setError(message.error || null);
                     setLoading(false);
                     setCommitting(false);

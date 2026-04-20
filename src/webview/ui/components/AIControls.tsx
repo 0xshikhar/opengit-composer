@@ -74,10 +74,46 @@ export default function AIControls() {
         setProviderConfig,
     ]);
 
+    useEffect(() => {
+        if (!isLocal || !providerConfig.model) {
+            return;
+        }
+
+        const looksHosted = /^(gpt|gemini|claude|moonshot|groq\/)/i.test(providerConfig.model);
+        const mismatchedLocalModel = ollamaModels.length > 0 && !ollamaModels.includes(providerConfig.model);
+
+        if (looksHosted || mismatchedLocalModel) {
+            setProviderConfig({ model: '' });
+            saveProviderPreference(providerConfig.provider, '', providerConfig.baseUrl || '');
+        }
+    }, [
+        isLocal,
+        ollamaModels,
+        providerConfig.baseUrl,
+        providerConfig.model,
+        providerConfig.provider,
+        saveProviderPreference,
+        setProviderConfig,
+    ]);
+
     const handleProviderChange = (provider: string) => {
-        const nextBaseUrl = isLocalProvider(provider)
-            ? getProviderBaseUrl(provider) || ''
-            : '';
+        // Determine appropriate baseUrl for the new provider
+        // Local providers need their specific default ports (Ollama: 11434, LM Studio: 1234)
+        // Cloud providers should have no baseUrl (use provider's API endpoint)
+        const isNewProviderLocal = isLocalProvider(provider);
+        const currentIsLocal = isLocal;
+
+        // Clear baseUrl when switching between different provider types to prevent port confusion
+        // e.g., switching from Ollama (11434) to LM Studio (1234) or vice versa
+        let nextBaseUrl: string | undefined;
+        if (isNewProviderLocal) {
+            // Always reset to the correct default for local providers
+            nextBaseUrl = getProviderBaseUrl(provider) || '';
+        } else {
+            // Cloud providers don't use custom baseUrl
+            nextBaseUrl = undefined;
+        }
+
         setProviderConfig({
             provider,
             model: '',
@@ -87,6 +123,7 @@ export default function AIControls() {
         setShowKeyInput(false);
         setNewKey('');
         setNewKeyLabel('');
+
         // Save preference immediately when switching provider
         saveProviderPreference(provider, '', nextBaseUrl);
     };

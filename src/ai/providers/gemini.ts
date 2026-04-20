@@ -191,9 +191,13 @@ export class GeminiProvider extends AIProvider {
             return data;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+            const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+            const responseText = axios.isAxiosError(error)
+                ? `${typeof responseData === 'string' ? responseData : JSON.stringify(responseData || {})} ${message}`
+                : message;
             const isSchemaOrFormatError =
                 mode === 'json' &&
-                /responseSchema|responseMimeType|schema|JSON|invalid/i.test(message);
+                /responseSchema|responseMimeType|schema|JSON|invalid/i.test(responseText);
 
             if (isSchemaOrFormatError) {
                 Logger.warn('GeminiProvider: Retrying without response schema after request failure', {
@@ -222,9 +226,7 @@ export class GeminiProvider extends AIProvider {
 
     private buildModelCandidates(primaryModel: string): string[] {
         const normalizedPrimary = normalizeModelId(primaryModel);
-        const catalogModels = getProviderModelOptions('gemini').map(model => normalizeModelId(model));
-        const candidates = [normalizedPrimary, ...catalogModels];
-        return [...new Set(candidates.filter(Boolean))];
+        return normalizedPrimary ? [normalizedPrimary] : [];
     }
 
     private shouldFailoverToNextModel(error: unknown): boolean {

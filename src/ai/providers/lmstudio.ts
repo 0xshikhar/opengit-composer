@@ -20,6 +20,10 @@ export class LMStudioProvider extends AIProvider {
     constructor(config: AIProviderConfig) {
         super(config);
         this.baseUrl = this.normalizeBaseUrl(config.baseUrl || 'http://localhost:1234/v1');
+        // Warn if baseUrl looks like Ollama instead of LM Studio
+        if (this.baseUrl.includes('11434') || this.baseUrl.includes('/api/chat')) {
+            Logger.warn('LMStudioProvider initialized with Ollama-style baseUrl', { baseUrl: this.baseUrl });
+        }
         Logger.info('LMStudioProvider initialized', { model: config.model, baseUrl: this.baseUrl });
     }
 
@@ -179,24 +183,34 @@ export class LMStudioProvider extends AIProvider {
             return data;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+            const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+            const responseText = axios.isAxiosError(error)
+                ? `${typeof responseData === 'string' ? responseData : JSON.stringify(responseData || {})} ${message}`
+                : message;
             const isResponseFormatError =
                 mode === 'json' &&
-                /response_format|json_object|JSON|schema|invalid/i.test(message);
+                /response_format|json_object|JSON|schema|invalid/i.test(responseText);
 
             if (isResponseFormatError) {
                 Logger.warn('LMStudioProvider: Retrying without response_format after request failure', {
                     model,
                     message,
                 });
-                const start = Date.now();
-                const data = await executeRequest(false);
-                Logger.aiResponse('LM Studio', 200, JSON.stringify(data).length, Date.now() - start);
-                this.requestMeta = {
-                    requestedModel: model,
-                    usedModel: model,
-                    failover: false,
-                };
-                return data;
+                try {
+                    const start = Date.now();
+                    const data = await executeRequest(false);
+                    Logger.aiResponse('LM Studio', 200, JSON.stringify(data).length, Date.now() - start);
+                    this.requestMeta = {
+                        requestedModel: model,
+                        usedModel: model,
+                        failover: true,
+                        failoverReason: 'LM Studio request retried without response_format for compatibility.',
+                    };
+                    return data;
+                } catch (fallbackError) {
+                    Logger.error('LMStudioProvider: Fallback request without response_format failed', fallbackError);
+                    throw buildProviderError('LM Studio API Error', fallbackError);
+                }
             }
 
             Logger.error('LMStudioProvider: API request failed', error);

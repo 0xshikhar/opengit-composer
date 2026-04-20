@@ -3,6 +3,7 @@ import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../a
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
+import { Logger } from '../../utils/logger';
 import {
     buildProviderError,
     extractChatCompletionContent,
@@ -22,7 +23,14 @@ export class GroqProvider extends AIProvider {
     async analyzeChanges(changes: FileChange[], options?: AIAnalyzeOptions): Promise<AIResponse> {
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         const response = await this.makeRequest(prompt);
-        const content = extractChatCompletionContent(response, 'Groq');
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, 'Groq');
+        } catch (error) {
+            Logger.warn('GroqProvider: Response content extraction failed, falling back to parser heuristics', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
             return parsed;
@@ -30,7 +38,15 @@ export class GroqProvider extends AIProvider {
 
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = extractChatCompletionContent(repairResponse, 'Groq');
+        let repairContent = '';
+        try {
+            repairContent = extractChatCompletionContent(repairResponse, 'Groq');
+        } catch (error) {
+            Logger.warn('GroqProvider: Repair response content extraction failed', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+            throw buildProviderError('Groq API Error', error);
+        }
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -39,9 +55,14 @@ export class GroqProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
 
-        return ResponseParser.parseMessageResponse(
-            extractChatCompletionContent(response, 'Groq')
-        );
+        try {
+            return ResponseParser.parseMessageResponse(
+                extractChatCompletionContent(response, 'Groq')
+            );
+        } catch (error) {
+            Logger.error('GroqProvider: Response content extraction failed', error);
+            throw buildProviderError('Groq API Error', error);
+        }
     }
 
     async validateApiKey(): Promise<boolean> {

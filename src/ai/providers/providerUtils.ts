@@ -34,6 +34,10 @@ function parseRetryAfter(headerValue: unknown): number | undefined {
         return undefined;
     }
 
+    if (headerValue.trim().length === 0) {
+        return undefined;
+    }
+
     const seconds = Number(headerValue);
     if (Number.isFinite(seconds) && seconds >= 0) {
         return Math.floor(seconds * 1000);
@@ -117,7 +121,8 @@ export function normalizeModelId(model: string): string {
     return model
         .trim()
         .replace(/^publishers\/[^/]+\/models\//, '')
-        .replace(/^models\//, '');
+        .replace(/^models\//, '')
+        .replace(/-(\d+)\.0+(?=-|$)/g, '-$1'); // Normalize version numbers like 3.0 -> 3
 }
 
 export function modelIdsMatch(selectedModel: string, availableModel: string): boolean {

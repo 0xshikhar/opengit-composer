@@ -39,7 +39,12 @@ export class OpenAIProvider extends AIProvider {
         const responseTime = Date.now() - startTime;
         
         // OpenAI's chat completion format
-        const content = extractChatCompletionContent(response, this.providerName);
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+        }
         
         Logger.aiResponse(this.providerName, 200, content.length, responseTime);
         Logger.aiRawResponse(content);
@@ -52,7 +57,13 @@ export class OpenAIProvider extends AIProvider {
         Logger.warn('OpenAIProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = extractChatCompletionContent(repairResponse, this.providerName);
+        let repairContent = '';
+        try {
+            repairContent = extractChatCompletionContent(repairResponse, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+            throw buildProviderError('OpenAI API Error', error);
+        }
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -62,7 +73,13 @@ export class OpenAIProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
 
         const response = await this.makeRequest(prompt);
-        const content = extractChatCompletionContent(response, this.providerName);
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+            throw buildProviderError('OpenAI API Error', error);
+        }
         
         Logger.aiRawResponse(content);
         

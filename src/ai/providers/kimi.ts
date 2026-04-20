@@ -29,7 +29,14 @@ export class KimiProvider extends AIProvider {
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         const response = await this.makeRequest(prompt);
 
-        const content = extractChatCompletionContent(response, 'Kimi');
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, 'Kimi');
+        } catch (error) {
+            Logger.warn('KimiProvider: Response content extraction failed, falling back to parser heuristics', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
             return parsed;
@@ -38,7 +45,15 @@ export class KimiProvider extends AIProvider {
         Logger.warn('KimiProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = extractChatCompletionContent(repairResponse, 'Kimi');
+        let repairContent = '';
+        try {
+            repairContent = extractChatCompletionContent(repairResponse, 'Kimi');
+        } catch (error) {
+            Logger.warn('KimiProvider: Repair response content extraction failed', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+            throw buildProviderError('Kimi API Error', error);
+        }
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -48,9 +63,14 @@ export class KimiProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
 
-        return ResponseParser.parseMessageResponse(
-            extractChatCompletionContent(response, 'Kimi')
-        );
+        try {
+            return ResponseParser.parseMessageResponse(
+                extractChatCompletionContent(response, 'Kimi')
+            );
+        } catch (error) {
+            Logger.error('KimiProvider: Response content extraction failed', error);
+            throw buildProviderError('Kimi API Error', error);
+        }
     }
 
     async validateApiKey(): Promise<boolean> {

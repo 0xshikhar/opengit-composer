@@ -15,6 +15,10 @@ export class OllamaProvider extends AIProvider {
     constructor(config: AIProviderConfig) {
         super(config);
         this.baseUrl = config.baseUrl || 'http://localhost:11434';
+        // Warn if baseUrl doesn't look like Ollama (typically port 11434 or /api path)
+        if (this.baseUrl && !this.baseUrl.includes('11434') && !this.baseUrl.includes('/api')) {
+            Logger.warn('OllamaProvider initialized with non-standard baseUrl', { baseUrl: this.baseUrl });
+        }
         Logger.info('OllamaProvider initialized', { model: config.model, baseUrl: this.baseUrl });
     }
 

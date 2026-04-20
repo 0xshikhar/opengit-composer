@@ -50,10 +50,11 @@ export const PROVIDERS: ProviderInfo[] = [
         requiresApiKey: true,
         defaultModel: 'gemini-2.5-flash',
         models: [
+            'gemini-3-pro',
+            'gemini-3-flash',
             'gemini-2.5-flash',
             'gemini-2.5-pro',
-            'gemini-2.5-flash-lite-preview-06-17',
-            'gemini-2.0-flash',
+            'gemini-2.5-flash-lite',
         ],
         baseUrl: 'apiKey',
         defaultBaseUrl: 'https://generativelanguage.googleapis.com',
@@ -145,13 +146,15 @@ export function resolveProviderHostAndModel(
     input: ProviderHostAndModelInput,
     defaultModel: string = ''
 ): ProviderHostAndModelSelection {
+    const rawModel = input.model || '';
+    // For local providers, only use the model if it doesn't contain provider-specific prefixes
     const model = isLocalProvider(input.provider)
-        ? (input.model || '')
+        ? (rawModel && !rawModel.match(/gemini|gpt|claude|moonshot/i) ? rawModel : '')
         : (input.model || defaultModel);
     const baseUrl = input.provider === 'ollama'
-        ? input.ollamaHost
+        ? (input.ollamaHost || getProviderBaseUrl('ollama'))
         : input.provider === 'lmstudio'
-            ? input.lmStudioHost
+            ? (input.lmStudioHost || getProviderBaseUrl('lmstudio'))
             : input.baseUrl;
 
     return {

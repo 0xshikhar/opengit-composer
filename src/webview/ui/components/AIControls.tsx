@@ -52,13 +52,35 @@ export default function AIControls() {
         }
     }, [isLocal, providerConfig.provider, providerConfig.baseUrl, setOllamaModels]);
 
+    useEffect(() => {
+        if (!isLocal || !providerConfig.model) {
+            return;
+        }
+
+        const looksHosted = /^(gpt|gemini|claude|moonshot|groq\/)/i.test(providerConfig.model);
+        const mismatchedLocalModel = ollamaModels.length > 0 && !ollamaModels.includes(providerConfig.model);
+
+        if (looksHosted || mismatchedLocalModel) {
+            setProviderConfig({ model: '' });
+            saveProviderPreference(providerConfig.provider, '', providerConfig.baseUrl || '');
+        }
+    }, [
+        isLocal,
+        ollamaModels,
+        providerConfig.baseUrl,
+        providerConfig.model,
+        providerConfig.provider,
+        saveProviderPreference,
+        setProviderConfig,
+    ]);
+
     const handleProviderChange = (provider: string) => {
         const nextBaseUrl = isLocalProvider(provider)
             ? getProviderBaseUrl(provider) || ''
             : '';
         setProviderConfig({
             provider,
-            model: isLocalProvider(provider) ? providerConfig.model : '',
+            model: '',
             apiKey: '',
             baseUrl: isLocalProvider(provider) ? nextBaseUrl : undefined,
         });
@@ -66,7 +88,7 @@ export default function AIControls() {
         setNewKey('');
         setNewKeyLabel('');
         // Save preference immediately when switching provider
-        saveProviderPreference(provider, isLocalProvider(provider) ? providerConfig.model : '', nextBaseUrl);
+        saveProviderPreference(provider, '', nextBaseUrl);
     };
 
     const handleModelChange = (model: string) => {

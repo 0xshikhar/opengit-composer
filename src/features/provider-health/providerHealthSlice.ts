@@ -1,3 +1,4 @@
+import axios from 'axios';
 import * as vscode from 'vscode';
 import { AIProviderFactory } from '../../ai/aiProviderFactory';
 import { LMStudioProvider } from '../../ai/providers/lmstudio';
@@ -98,6 +99,9 @@ export async function loadLocalModels(provider: string, baseUrl: string, webview
         const localProvider = provider === 'lmstudio'
             ? new LMStudioProvider({ apiKey: '', model: '', baseUrl })
             : new OllamaProvider({ apiKey: '', model: '', baseUrl });
+        const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+        const healthPath = provider === 'lmstudio' ? '/models' : '/api/tags';
+        await axios.get(`${normalizedBaseUrl}${healthPath}`, { timeout: 5000 });
         const models = await localProvider.getAvailableModels();
         await webview.postMessage({ command: 'ollamaModelsLoaded', models });
     } catch (error) {

@@ -16,94 +16,99 @@ export function mapErrorToMessage(
     const err = error as ComposeMessageError;
     const message = error instanceof Error ? error.message : String(error);
     const code = err?.code || 'UNKNOWN_ERROR';
-    const diagnostics = buildDiagnostics(error, code, message, configLoader);
+    const buildPayload = (payload: Omit<ComposerErrorPayload, 'diagnostics'>): ComposerErrorPayload => ({
+        ...payload,
+        diagnostics: buildDiagnostics(error, payload.code, payload.message, configLoader),
+    });
 
     if (err?.action) {
-        return {
+        return buildPayload({
             code,
             severity: severityForCode(code),
             recoverable: isRecoverableCode(code),
             message,
             action: err.action,
-            diagnostics,
-        };
+        });
     }
 
     if (code === 'ONLY_EXCLUDED_FILES') {
-        return {
+        return buildPayload({
             code,
             severity: 'warning',
             recoverable: true,
             message: 'All staged files are excluded by your privacy policy. Update exclude patterns or stage different files.',
             action: { label: 'Refresh', command: 'refresh' },
-            diagnostics,
-        };
+        });
     }
 
     if (/No staged changes/i.test(message)) {
-        return {
+        return buildPayload({
             code: 'NO_STAGED_CHANGES',
             severity: 'warning',
             recoverable: true,
             message: 'No staged changes are available. Stage files and try again.',
             action: { label: 'Refresh', command: 'refresh' },
-            diagnostics,
-        };
+        });
     }
 
     if (code === 'STAGED_SNAPSHOT_STALE') {
-        return {
+        return buildPayload({
             code,
             severity: 'warning',
             recoverable: true,
             message,
             action: { label: 'Refresh', command: 'refresh' },
-            diagnostics,
-        };
+        });
     }
 
     if (code === 'NO_GIT_REPOSITORY' || /not a git repository|No workspace folder found|repository not found/i.test(message)) {
-        return {
+        return buildPayload({
             code: 'NO_GIT_REPOSITORY',
             severity: 'warning',
             recoverable: true,
             message: 'OpenGit Composer could not find a git repository in the current workspace. Select a directory that contains a .git repository.',
             action: { label: 'Select Directory', command: 'openWorkspace' },
-            diagnostics,
-        };
+        });
     }
 
     if (/No API key configured|missing api key/i.test(message)) {
-        return {
+        return buildPayload({
             code: 'PRECHECK_MISSING_API_KEY',
             severity: 'error',
             recoverable: true,
             message: 'API key is missing for the selected provider. Add a key in AI Controls and compose again.',
             action: { label: 'Test Connection', command: 'testConnection' },
-            diagnostics,
-        };
+        });
     }
 
     if (/401|403|unauthorized|invalid api key|forbidden/i.test(message)) {
-        return {
+        return buildPayload({
             code: 'AUTH_ERROR',
             severity: 'error',
             recoverable: true,
             message: 'Authentication failed for the selected provider. Verify your API key and model access.',
             action: { label: 'Test Connection', command: 'testConnection' },
-            diagnostics,
-        };
+        });
     }
 
     if (/429|rate limit|quota/i.test(message)) {
-        return {
+        return buildPayload({
             code: 'RATE_LIMIT',
             severity: 'warning',
             recoverable: true,
             message: 'Provider rate limit reached. Retry compose with backoff or rotate to another key.',
             action: { label: 'Retry Compose', command: 'retryCompose' },
-            diagnostics,
-        };
+        });
+    }
+
+    if (/Model.*not available|Model.*not listed|is not available/i.test(message)) {
+        return buildPayload({
+            code: 'PRECHECK_MODEL_UNAVAILABLE',
+            severity: 'error',
+            recoverable: true,
+            message: 'The configured model is not available. For local providers, clear the model field to auto-detect. For cloud providers, check your API key has access to this model.',
+            action: { label: 'Test Connection', command: 'testConnection' },
+        });
     }
 
     if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network|timeout|timed out|TLS|ssl/i.test(message)) {
@@ -117,23 +122,21 @@ export function mapErrorToMessage(
             /ECONNREFUSED/i.test(message) ? 'The provider endpoint refused the connection.' :
             /TLS|ssl/i.test(message) ? 'TLS or certificate negotiation failed.' :
             'The request timed out or the network is unstable.';
-        return {
+        return buildPayload({
             code: codeMatch,
             severity: 'error',
             recoverable: true,
             message: `Network or provider endpoint is unreachable. ${hint}`,
             action: { label: 'Refresh', command: 'refresh' },
-            diagnostics,
-        };
+        });
     }
 
-    return {
+    return buildPayload({
         code,
         severity: severityForCode(code),
         recoverable: isRecoverableCode(code),
         message,
-        diagnostics,
-    };
+    });
 }
 
 export function buildDiagnostics(

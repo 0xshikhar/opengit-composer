@@ -58,10 +58,14 @@ export async function composeWithKeyRotation(
     webview: vscode.Webview
 ): Promise<void> {
     const resolvedConfig: ComposeProviderConfig = providerConfig || getDefaultProviderConfig(deps.configLoader);
-    await runComposePreflight(deps, resolvedConfig);
+    const attemptCompose = async (candidateConfig: ComposeProviderConfig) => {
+        await runComposePreflight(deps, candidateConfig);
+        await compose(deps, candidateConfig, webview);
+    };
+    let explicitAttemptError: unknown;
 
     if (isLocalProvider(resolvedConfig.provider) || !deps.keyManager) {
-        await compose(deps, resolvedConfig, webview);
+        await attemptCompose(resolvedConfig);
         return;
     }
 
@@ -72,36 +76,51 @@ export async function composeWithKeyRotation(
         }
 
         try {
-            await compose(deps, resolvedConfig, webview);
+            await attemptCompose(resolvedConfig);
             return;
         } catch (error) {
+            explicitAttemptError = error;
             Logger.warn('ComposeSlice: Compose failed with explicit key, falling back to rotated stored keys', {
                 provider: resolvedConfig.provider,
                 message: error instanceof Error ? error.message : String(error),
             });
+            // Continue to rotated keys below.
         }
     }
 
     const availableKeys = await deps.keyManager.getKeys(resolvedConfig.provider);
-    if (availableKeys.length === 0) {
-        await compose(deps, resolvedConfig, webview);
+    const rotatedKeys = resolvedConfig.apiKey
+        ? availableKeys.filter(key => key.key !== resolvedConfig.apiKey)
+        : availableKeys;
+    if (rotatedKeys.length === 0) {
+        if (resolvedConfig.apiKey) {
+            throw explicitAttemptError instanceof Error
+                ? explicitAttemptError
+                : new Error('All configured API keys failed for compose request.');
+        }
+        await attemptCompose(resolvedConfig);
         return;
     }
 
     let lastError: unknown;
-    for (let attempt = 1; attempt <= availableKeys.length; attempt++) {
+    for (let attempt = 1; attempt <= rotatedKeys.length; attempt++) {
         const rotatedKey = await deps.keyManager.getNextKey(resolvedConfig.provider);
         if (!rotatedKey) break;
 
+        // Add delay between retries to prevent rapid successive failures
+        if (attempt > 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
         try {
-            await compose(deps, { ...resolvedConfig, apiKey: rotatedKey }, webview);
+            await attemptCompose({ ...resolvedConfig, apiKey: rotatedKey });
             return;
         } catch (error) {
             lastError = error;
             Logger.warn('ComposeSlice: Compose attempt failed, rotating to next key', {
                 provider: resolvedConfig.provider,
                 attempt,
-                totalAttempts: availableKeys.length,
+                totalAttempts: rotatedKeys.length,
                 message: error instanceof Error ? error.message : String(error),
             });
         }
@@ -179,8 +198,11 @@ export async function runComposePreflight(
 
     const modelCheck = await providerInstance.validateModelAvailability();
     if (!modelCheck.available) {
+        const availableModels = modelCheck.models?.length
+            ? ` Available models: ${modelCheck.models.slice(0, 5).join(', ')}${modelCheck.models.length > 5 ? '...' : ''}.`
+            : '';
         const error = new Error(
-            modelCheck.reason || `Model "${model}" is not available for provider "${provider}".`
+            (modelCheck.reason || `Model "${model}" is not available for provider "${provider}".`) + availableModels
         ) as ComposeMessageError;
         error.code = 'PRECHECK_MODEL_UNAVAILABLE';
         throw error;

@@ -20,6 +20,15 @@ suite('Provider Utils Test Suite', () => {
         );
     });
 
+    test('should throw when chat completion content is null', () => {
+        assert.throws(
+            () => extractChatCompletionContent({
+                choices: [{ message: { content: null } }],
+            }, 'OpenAI'),
+            /OpenAI response did not include commit message content/
+        );
+    });
+
     test('should extract gemini content from candidate parts', () => {
         const content = extractGeminiContent({
             candidates: [
@@ -35,6 +44,22 @@ suite('Provider Utils Test Suite', () => {
         }, 'Google');
 
         assert.strictEqual(content, 'first line\nsecond line');
+    });
+
+    test('should throw when gemini candidate has no parts but a finish reason', () => {
+        assert.throws(
+            () => extractGeminiContent({
+                candidates: [
+                    {
+                        content: {
+                            parts: [],
+                        },
+                        finishReason: 'SAFETY',
+                    },
+                ],
+            }, 'Google'),
+            /Google response had no text content \(finish reason: SAFETY\)/
+        );
     });
 
     test('should surface gemini block reasons', () => {

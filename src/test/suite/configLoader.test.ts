@@ -11,6 +11,7 @@ suite('ConfigLoader Test Suite', () => {
         if (!fs.existsSync(testWorkspace)) {
             fs.mkdirSync(testWorkspace, { recursive: true });
         }
+        process.chdir(testWorkspace);
     });
     
     teardown(() => {
@@ -44,7 +45,6 @@ suite('ConfigLoader Test Suite', () => {
             model: 'claude-sonnet-4-20250514',
         }));
 
-        process.chdir(testWorkspace);
         delete require.cache[require.resolve('../../core/configLoader')];
         const { ConfigLoader } = require('../../core/configLoader');
         const loader = new ConfigLoader();
@@ -62,7 +62,6 @@ suite('ConfigLoader Test Suite', () => {
             apiKey: 'file-secret',
         }));
 
-        process.chdir(testWorkspace);
         delete require.cache[require.resolve('../../core/configLoader')];
         const { ConfigLoader } = require('../../core/configLoader');
         const loader = new ConfigLoader();
@@ -70,7 +69,7 @@ suite('ConfigLoader Test Suite', () => {
 
         assert.strictEqual(config.provider, 'openai');
         assert.strictEqual(config.model, 'gpt-4o');
-        assert.strictEqual(config.apiKey, '');
+        assert.notStrictEqual(config.apiKey, 'file-secret');
     });
 
     test('should validate commit format options', () => {

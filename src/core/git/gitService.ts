@@ -106,28 +106,30 @@ export class GitService {
         return (await this.git.revparse(['HEAD'])).trim();
     }
 
-    async snapshotLooseChanges(label: string): Promise<boolean> {
+    async snapshotLooseChanges(label: string): Promise<string | undefined> {
         const status = await this.git.status();
         const hasLooseChanges = status.files.some(file => file.index === '?' || file.working_dir !== ' ');
         if (!hasLooseChanges) {
-            return false;
+            return undefined;
         }
 
         await this.git.raw(['stash', 'push', '--keep-index', '-u', '-m', label]);
-        return true;
+        const stashList = await this.git.raw(['stash', 'list', '--format=%gd', '-n', '1']);
+        const stashRef = `${stashList}`.split(/\r?\n/)[0]?.trim();
+        return stashRef || undefined;
     }
 
-    async applyLatestStash(includeIndex: boolean): Promise<void> {
+    async applyLatestStash(stashRef: string, includeIndex: boolean): Promise<void> {
         const args = ['stash', 'apply'];
         if (includeIndex) {
             args.push('--index');
         }
-        args.push('stash@{0}');
+        args.push(stashRef);
         await this.git.raw(args);
     }
 
-    async dropLatestStash(): Promise<void> {
-        await this.git.raw(['stash', 'drop', 'stash@{0}']);
+    async dropLatestStash(stashRef: string): Promise<void> {
+        await this.git.raw(['stash', 'drop', stashRef]);
     }
 
     async resetHard(ref: string): Promise<void> {

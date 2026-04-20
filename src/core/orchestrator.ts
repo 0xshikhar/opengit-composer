@@ -202,7 +202,7 @@ export class Orchestrator {
             AIProviderFactory.getDefaultModel(provider)
         );
         const model = isLocalProvider(provider)
-            ? (providerConfig.model || resolved.model)
+            ? (providerConfig.model || '') // Local providers: only use explicitly provided model, never from global config
             : (providerConfig.model || resolved.model);
         const baseUrl = providerConfig.baseUrl || resolved.baseUrl;
 
@@ -328,6 +328,7 @@ export class Orchestrator {
             };
         } catch (error) {
             const failure = describeProviderError(error);
+            this.aiProvider = undefined;
             Logger.warn('Orchestrator: AI request failed; falling back to heuristics', {
                 provider: providerConfig.provider,
                 model: providerConfig.model,

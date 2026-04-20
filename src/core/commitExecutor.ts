@@ -48,6 +48,7 @@ export class CommitExecutor {
         const originalHead = await this.gitService.getCurrentHead();
         const stashedLooseChanges = await this.gitService.snapshotLooseChanges(batchLabel);
         let failure: Error | undefined;
+        let cleanupError: unknown;
 
         try {
             for (let i = 0; i < drafts.length; i++) {
@@ -89,25 +90,30 @@ export class CommitExecutor {
                 try {
                     await this.gitService.resetHard(originalHead);
                     if (stashedLooseChanges) {
-                        await this.gitService.applyLatestStash(true);
-                        await this.gitService.dropLatestStash();
+                        await this.gitService.applyLatestStash(stashedLooseChanges, true);
+                        await this.gitService.dropLatestStash(stashedLooseChanges);
                     }
                 } catch (rollbackError) {
                     Logger.error('CommitExecutor: Failed to roll back batch commit', rollbackError);
-                    throw rollbackError;
+                    cleanupError = rollbackError;
                 }
-                throw failure;
-            }
-
-            if (stashedLooseChanges) {
+            } else if (stashedLooseChanges) {
                 try {
-                    await this.gitService.applyLatestStash(false);
-                    await this.gitService.dropLatestStash();
+                    await this.gitService.applyLatestStash(stashedLooseChanges, false);
+                    await this.gitService.dropLatestStash(stashedLooseChanges);
                 } catch (restoreError) {
                     Logger.error('CommitExecutor: Failed to restore unstaged changes after batch commit', restoreError);
-                    throw restoreError;
+                    cleanupError = restoreError;
                 }
             }
+        }
+
+        if (cleanupError) {
+            throw cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError));
+        }
+
+        if (failure) {
+            throw failure;
         }
 
         return results;

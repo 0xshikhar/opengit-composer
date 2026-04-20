@@ -127,7 +127,9 @@ export class OllamaProvider extends AIProvider {
                     },
                     {
                         headers: { 'Content-Type': 'application/json' },
-                        timeout: 120000 // local models can be slow
+                        // Extended timeout for local models (10 minutes)
+                        // Local LLMs with reasoning can be very slow
+                        timeout: 600000,
                     }
                 ),
                 2

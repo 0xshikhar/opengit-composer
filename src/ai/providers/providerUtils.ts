@@ -38,6 +38,10 @@ function parseRetryAfter(headerValue: unknown): number | undefined {
         return undefined;
     }
 
+    if (headerValue.trim().length === 0) {
+        return undefined;
+    }
+
     const seconds = Number(headerValue);
     if (Number.isFinite(seconds) && seconds >= 0) {
         return Math.floor(seconds * 1000);

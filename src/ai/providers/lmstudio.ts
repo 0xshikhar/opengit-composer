@@ -155,10 +155,12 @@ export class LMStudioProvider extends AIProvider {
                     requestBody,
                     {
                         headers: { 'Content-Type': 'application/json' },
-                        timeout: 120000,
+                        // Extended timeout for local models (10 minutes)
+                        // Local LLMs with reasoning can be very slow - 11K tokens can take 5-10+ minutes
+                        timeout: 600000,
                     }
                 ),
-                2
+                2 // maxAttempts
             );
 
             Logger.info('LMStudioProvider: API response received', { model, status: response.status });

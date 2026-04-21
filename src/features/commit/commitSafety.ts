@@ -53,7 +53,7 @@ export async function checkSnapshotFresh(
         fresh: false,
         warning: {
             code: 'STAGED_SNAPSHOT_STALE',
-            message: `Staged changes have changed since composition (${addedFiles.length} added, ${removedFiles.length} removed). Click "Commit All" again to force commit with current files.`,
+            message: `Staged changes have changed since composition (${addedFiles.length} added, ${removedFiles.length} removed).`,
             addedFiles,
             removedFiles,
         },

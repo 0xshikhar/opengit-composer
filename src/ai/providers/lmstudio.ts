@@ -6,6 +6,7 @@ import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
 import {
     buildProviderError,
+    extractChatCompletionContent,
     extractModelIds,
     modelIdsMatch,
     requestWithRetry,
@@ -32,7 +33,7 @@ export class LMStudioProvider extends AIProvider {
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         Logger.aiRequest('LM Studio', this.config.model || 'active-local-model', prompt.length);
         const response = await this.makeRequest(prompt, 'json');
-        const content = response.choices?.[0]?.message?.content || '';
+        const content = extractChatCompletionContent(response, 'LM Studio');
 
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
@@ -42,7 +43,7 @@ export class LMStudioProvider extends AIProvider {
         Logger.warn('LMStudioProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt, 'json');
-        const repairContent = repairResponse.choices?.[0]?.message?.content || '';
+        const repairContent = extractChatCompletionContent(repairResponse, 'LM Studio');
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
@@ -52,7 +53,7 @@ export class LMStudioProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
         Logger.aiRequest('LM Studio', this.config.model || 'active-local-model', prompt.length);
         const response = await this.makeRequest(prompt, 'text');
-        const content = response.choices?.[0]?.message?.content || '';
+        const content = extractChatCompletionContent(response, 'LM Studio');
         return ResponseParser.parseMessageResponse(content);
     }
 

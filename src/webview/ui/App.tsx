@@ -90,9 +90,11 @@ export default function App() {
                         useCommitStore.getState().selectDraft(null);
                         useCommitStore.getState().selectFile(null);
                         setActiveView('tree');
+                        clearWarning(); // Reset force commit state on session reset
                     } else if (useCommitStore.getState().error?.code === 'STAGED_SNAPSHOT_STALE') {
                         setDrafts([], null, null, null, null);
                         setActiveView('tree');
+                        clearWarning(); // Reset force commit state on STALE error
                     }
                     setStagedFiles(message.data?.staged || []);
                     setUnstagedFiles(message.data?.unstaged || []);
@@ -101,6 +103,7 @@ export default function App() {
                     }
                     setError(null);
                     setDiagnostics(null);
+                    clearWarning(); // Always clear warning on fresh data load
                     if (message.data?.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }

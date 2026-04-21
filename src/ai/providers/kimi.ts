@@ -63,14 +63,17 @@ export class KimiProvider extends AIProvider {
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
 
+        // Extract content with error handling - only wrap extraction, not parsing
+        let content: string;
         try {
-            return ResponseParser.parseMessageResponse(
-                extractChatCompletionContent(response, 'Kimi')
-            );
+            content = extractChatCompletionContent(response, 'Kimi');
         } catch (error) {
             Logger.error('KimiProvider: Response content extraction failed', error);
             throw buildProviderError('Kimi API Error', error);
         }
+
+        // Parse outside try/catch so parse errors propagate naturally
+        return ResponseParser.parseMessageResponse(content);
     }
 
     async validateApiKey(): Promise<boolean> {

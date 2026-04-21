@@ -74,34 +74,11 @@ export default function AIControls() {
         setProviderConfig,
     ]);
 
-    useEffect(() => {
-        if (!isLocal || !providerConfig.model) {
-            return;
-        }
-
-        const looksHosted = /^(gpt|gemini|claude|moonshot|groq\/)/i.test(providerConfig.model);
-        const mismatchedLocalModel = ollamaModels.length > 0 && !ollamaModels.includes(providerConfig.model);
-
-        if (looksHosted || mismatchedLocalModel) {
-            setProviderConfig({ model: '' });
-            saveProviderPreference(providerConfig.provider, '', providerConfig.baseUrl || '');
-        }
-    }, [
-        isLocal,
-        ollamaModels,
-        providerConfig.baseUrl,
-        providerConfig.model,
-        providerConfig.provider,
-        saveProviderPreference,
-        setProviderConfig,
-    ]);
-
     const handleProviderChange = (provider: string) => {
         // Determine appropriate baseUrl for the new provider
         // Local providers need their specific default ports (Ollama: 11434, LM Studio: 1234)
         // Cloud providers should have no baseUrl (use provider's API endpoint)
         const isNewProviderLocal = isLocalProvider(provider);
-        const currentIsLocal = isLocal;
 
         // Clear baseUrl when switching between different provider types to prevent port confusion
         // e.g., switching from Ollama (11434) to LM Studio (1234) or vice versa
@@ -118,7 +95,7 @@ export default function AIControls() {
             provider,
             model: '',
             apiKey: '',
-            baseUrl: isLocalProvider(provider) ? nextBaseUrl : undefined,
+            baseUrl: nextBaseUrl,
         });
         setShowKeyInput(false);
         setNewKey('');

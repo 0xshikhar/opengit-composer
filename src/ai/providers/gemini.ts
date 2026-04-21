@@ -173,6 +173,11 @@ export class GeminiProvider extends AIProvider {
             return response.data;
         };
 
+        // Pre-compute normalized model IDs to avoid repeated calculations
+        const requestedModelId = normalizeModelId(this.config.model || getProviderDefaultModel('gemini'));
+        const usedModelId = normalizeModelId(model);
+        const hasFailover = usedModelId !== requestedModelId;
+
         try {
             Logger.debug('GeminiProvider: Making API request', {
                 model,
@@ -181,11 +186,11 @@ export class GeminiProvider extends AIProvider {
             });
             const data = await executeRequest(true);
             this.requestMeta = {
-                requestedModel: normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
-                usedModel: normalizeModelId(model),
-                failover: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
-                failoverReason: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))
-                    ? `Gemini switched from ${normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))} to ${normalizeModelId(model)} after overload or availability errors.`
+                requestedModel: requestedModelId,
+                usedModel: usedModelId,
+                failover: hasFailover,
+                failoverReason: hasFailover
+                    ? `Gemini switched from ${requestedModelId} to ${usedModelId} after overload or availability errors.`
                     : undefined,
             };
             return data;
@@ -204,20 +209,16 @@ export class GeminiProvider extends AIProvider {
                     model,
                     message,
                 });
-                try {
-                    const data = await executeRequest(false);
-                    this.requestMeta = {
-                        requestedModel: normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
-                        usedModel: normalizeModelId(model),
-                        failover: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini')),
-                        failoverReason: normalizeModelId(model) !== normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))
-                            ? `Gemini switched from ${normalizeModelId(this.config.model || getProviderDefaultModel('gemini'))} to ${normalizeModelId(model)} after overload or request-shape errors.`
-                            : undefined,
-                    };
-                    return data;
-                } catch (retryError) {
-                    throw retryError;
-                }
+                const data = await executeRequest(false);
+                this.requestMeta = {
+                    requestedModel: requestedModelId,
+                    usedModel: usedModelId,
+                    failover: hasFailover,
+                    failoverReason: hasFailover
+                        ? `Gemini switched from ${requestedModelId} to ${usedModelId} after overload or request-shape errors.`
+                        : undefined,
+                };
+                return data;
             }
 
             throw error;

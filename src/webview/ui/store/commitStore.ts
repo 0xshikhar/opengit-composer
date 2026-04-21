@@ -373,6 +373,8 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             isLoading: false,
             isCommitting: false,
             error: null,
+            warning: null,
+            forceCommit: { pending: false, type: null },
             commitProgress: null,
             activeView: 'tree',
             ollamaModels: [],

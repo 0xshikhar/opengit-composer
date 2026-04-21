@@ -24,13 +24,14 @@ export async function commitSingle(
 
     if (!check.fresh && !force) {
         // Send warning instead of throwing error
+        const baseMessage = check.warning?.message || 'Staged changes have changed.';
         await webview.postMessage({
             command: 'warning',
             warning: {
                 code: 'STAGED_SNAPSHOT_STALE',
                 severity: 'warning',
                 recoverable: true,
-                message: check.warning?.message || 'Staged changes have changed. Click "Commit" again to force.',
+                message: `${baseMessage} Click "Commit" again to force commit with current files.`,
                 action: { label: 'Force Commit', command: 'commitSingle' },
                 addedFiles: check.warning?.addedFiles,
                 removedFiles: check.warning?.removedFiles,
@@ -56,13 +57,14 @@ export async function commitAll(
 
     if (!check.fresh && !force) {
         // Send warning instead of throwing error
+        const baseMessage = check.warning?.message || 'Staged changes have changed.';
         await webview.postMessage({
             command: 'warning',
             warning: {
                 code: 'STAGED_SNAPSHOT_STALE',
                 severity: 'warning',
                 recoverable: true,
-                message: check.warning?.message || 'Staged changes have changed. Click "Commit All" again to force.',
+                message: `${baseMessage} Click "Commit All" again to force commit with current files.`,
                 action: { label: 'Force Commit All', command: 'commitAll' },
                 addedFiles: check.warning?.addedFiles,
                 removedFiles: check.warning?.removedFiles,

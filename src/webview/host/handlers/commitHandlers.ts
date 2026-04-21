@@ -56,7 +56,8 @@ export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandReg
                 resolveCommitSliceDeps(),
                 message.draft,
                 resolveSnapshot(message),
-                webview
+                webview,
+                message.force as boolean | undefined
             );
         },
         commitAll: async (message, webview) => {
@@ -81,7 +82,8 @@ export function createCommitHandlers(deps: CommitHandlerDeps): WebviewCommandReg
                 resolveCommitSliceDeps(),
                 message.drafts,
                 resolveSnapshot(message),
-                webview
+                webview,
+                message.force as boolean | undefined
             );
         },
     };

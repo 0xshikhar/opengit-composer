@@ -125,7 +125,7 @@ export default function AIControls() {
         setNewKeyLabel('');
 
         // Save preference immediately when switching provider
-        saveProviderPreference(provider, '', nextBaseUrl);
+        saveProviderPreference(provider, '', nextBaseUrl || '');
     };
 
     const handleModelChange = (model: string) => {

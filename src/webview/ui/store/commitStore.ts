@@ -181,7 +181,14 @@ interface CommitStoreState {
     reset: () => void;
 }
 
-const generateId = () => Math.random().toString(36).substring(2, 10);
+const generateId = () => {
+    // Use crypto.randomUUID if available for better uniqueness guarantees
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for environments without crypto.randomUUID
+    return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+};
 
 export const useCommitStore = create<CommitStoreState>((set, get) => ({
     // Initial state

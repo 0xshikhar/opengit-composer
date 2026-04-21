@@ -3,7 +3,7 @@ import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
 export default function StatusBar() {
-    const { isLoading, isCommitting, error, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
+    const { isLoading, isCommitting, error, warning, forceCommit, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     if (isCommitting && commitProgress) {
@@ -26,6 +26,27 @@ export default function StatusBar() {
             <div className="status-bar status-loading">
                 <span className="status-icon spinning">◌</span>
                 <span>Analyzing changes with AI…</span>
+            </div>
+        );
+    }
+
+    if (warning) {
+        return (
+            <div className="status-bar status-warning">
+                <span className="status-icon">⚡</span>
+                <span className="warning-text">{warning.message}</span>
+                <span className="status-fallback-badge status-warning-badge">{warning.code}</span>
+                {forceCommit?.pending && (
+                    <span className="status-hint">(Click commit again to force)</span>
+                )}
+                {warning.action && (
+                    <button
+                        className="btn btn-sm status-inline-action"
+                        onClick={() => postMessage(warning.action!.command)}
+                    >
+                        {warning.action.label}
+                    </button>
+                )}
             </div>
         );
     }

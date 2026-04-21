@@ -53,6 +53,9 @@ export default function App() {
         setLoading,
         setCommitting,
         setError,
+        setWarning,
+        setForceCommit,
+        clearWarning,
         setCommitProgress,
         markCommitted,
         setProviderConfig,
@@ -153,11 +156,28 @@ export default function App() {
                 case 'commitAllDone':
                     setCommitting(false);
                     setCommitProgress(null);
+                    clearWarning();
+                    break;
+
+                case 'warning':
+                    setWarning(message.warning || null);
+                    if (message.warning?.code === 'STAGED_SNAPSHOT_STALE') {
+                        // Track that we need force commit on next attempt
+                        const isCommitAll = message.warning?.action?.command === 'commitAll';
+                        setForceCommit({
+                            pending: true,
+                            type: isCommitAll ? 'all' : 'single',
+                            draftId: useCommitStore.getState().selectedDraftId || undefined,
+                        });
+                    }
+                    setLoading(false);
+                    setCommitting(false);
                     break;
 
                 case 'error':
                     composeInProgress.current = false;
                     setError(message.error || null);
+                    clearWarning();
                     setLoading(false);
                     setCommitting(false);
                     break;
@@ -185,6 +205,9 @@ export default function App() {
         setCommitProgress,
         setDrafts,
         setError,
+        setWarning,
+        setForceCommit,
+        clearWarning,
         setLoading,
         setProviderConfig,
         setPrivacyPreview,
@@ -201,7 +224,12 @@ export default function App() {
     const handleCommitAll = () => {
         const pending = drafts.filter(d => d.state !== 'committed');
         if (pending.length === 0) return;
-        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot });
+
+        // Check if we have a pending force commit warning
+        const { forceCommit } = useCommitStore.getState();
+        const force = forceCommit.pending && forceCommit.type === 'all';
+
+        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot, force });
     };
 
     const handleRefresh = () => {

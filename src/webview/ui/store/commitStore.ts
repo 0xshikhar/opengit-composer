@@ -96,6 +96,22 @@ export interface ComposerErrorState {
     diagnostics?: ProviderDiagnostics | null;
 }
 
+export interface ComposerWarningState {
+    code: 'STAGED_SNAPSHOT_STALE';
+    severity: 'warning';
+    recoverable: true;
+    message: string;
+    action?: ErrorAction | null;
+    addedFiles?: string[];
+    removedFiles?: string[];
+}
+
+export interface ForceCommitState {
+    pending: boolean;
+    type: 'single' | 'all' | null;
+    draftId?: string;
+}
+
 export interface ConnectionTestResult {
     provider: string;
     available: boolean;
@@ -128,6 +144,8 @@ interface CommitStoreState {
     isLoading: boolean;
     isCommitting: boolean;
     error: ComposerErrorState | null;
+    warning: ComposerWarningState | null;
+    forceCommit: ForceCommitState;
     commitProgress: { current: number; total: number } | null;
 
     // Provider config
@@ -158,6 +176,9 @@ interface CommitStoreState {
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
     setError: (error: ComposerErrorState | null) => void;
+    setWarning: (warning: ComposerWarningState | null) => void;
+    setForceCommit: (forceCommit: ForceCommitState) => void;
+    clearWarning: () => void;
     setCommitProgress: (progress: { current: number; total: number } | null) => void;
     setProviderConfig: (config: Partial<ProviderConfig>) => void;
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
@@ -207,6 +228,8 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     isLoading: false,
     isCommitting: false,
     error: null,
+    warning: null,
+    forceCommit: { pending: false, type: null },
     commitProgress: null,
     providerConfig: {
         provider: 'openai',
@@ -236,6 +259,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
     setError: (error) => set({ error, diagnostics: error?.diagnostics || null }),
+    setWarning: (warning) => set({ warning }),
+    setForceCommit: (forceCommit) => set({ forceCommit }),
+    clearWarning: () => set({ warning: null, forceCommit: { pending: false, type: null } }),
     setCommitProgress: (progress) => set({ commitProgress: progress }),
     setProviderConfig: (config) =>
         set((state) => ({

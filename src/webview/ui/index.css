@@ -902,6 +902,27 @@ body {
   border-color: #f8514966;
 }
 
+.status-warning {
+  border-color: #d2992266;
+  background: #d299221a;
+}
+
+.warning-text {
+  color: #d29922;
+}
+
+.status-warning-badge {
+  border-color: #d2992266;
+  color: #d29922;
+  background: #d2992233;
+}
+
+.status-hint {
+  color: var(--vscode-descriptionForeground, #9a9a9a);
+  font-size: 11px;
+  font-style: italic;
+}
+
 .status-committed,
 .status-confidence,
 .status-reasoning,

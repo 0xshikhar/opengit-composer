@@ -139,7 +139,9 @@ export class Orchestrator {
         const multiDraftNormalization = await this.enforceMultiDraftRequirement(
             eligibleChanges,
             composeResult.drafts,
-            config
+            config,
+            context,
+            providerConfig?.additionalInstructions
         );
         composeResult.drafts = multiDraftNormalization.drafts;
         if (multiDraftNormalization.applied) {
@@ -422,7 +424,9 @@ export class Orchestrator {
     private async enforceMultiDraftRequirement(
         changes: FileChange[],
         drafts: DraftCommit[],
-        config: ComposerConfig
+        config: ComposerConfig,
+        context?: RepoContext,
+        additionalInstructions?: string
     ): Promise<{ drafts: DraftCommit[]; applied: boolean; strategy: string }> {
         if (changes.length <= 1) {
             return { drafts, applied: false, strategy: 'single-file-noop' };
@@ -439,7 +443,9 @@ export class Orchestrator {
         }
 
         const semanticDrafts = await Promise.all(
-            semanticGroups.map((group, index) => this.createForcedDraft(group.name, group.files, index, config.maxSubjectLength))
+            semanticGroups.map((group, index) =>
+                this.createForcedDraft(group.name, group.files, index, config.maxSubjectLength, context, config.commitFormat, additionalInstructions)
+            )
         );
 
         return {
@@ -470,7 +476,10 @@ export class Orchestrator {
         groupName: string,
         files: FileChange[],
         index: number,
-        maxSubjectLength: number
+        maxSubjectLength: number,
+        context?: RepoContext,
+        commitFormat?: 'conventional' | 'angular' | 'gitmoji' | 'custom',
+        additionalInstructions?: string
     ): Promise<DraftCommit> | DraftCommit {
         let message = this.buildHeuristicCommitMessage(
             'chore',
@@ -480,7 +489,12 @@ export class Orchestrator {
         );
 
         if (this.aiProvider) {
-            return this.aiProvider.generateCommitMessage(files)
+            return this.aiProvider.generateCommitMessage(files, {
+                context,
+                commitFormat,
+                maxSubjectLength,
+                additionalInstructions,
+            })
                 .then(aiMessage => {
                     if (aiMessage && aiMessage.trim()) {
                         message = this.normalizeCommitMessage(aiMessage.trim());

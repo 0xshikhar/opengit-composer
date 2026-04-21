@@ -21,6 +21,16 @@ export type WebviewToHostCommand =
     | 'generate'
     | 'commit';
 
+export interface ComposerWarningPayload {
+    code: 'STAGED_SNAPSHOT_STALE';
+    severity: 'warning';
+    recoverable: true;
+    message: string;
+    action?: ComposerErrorAction;
+    addedFiles?: string[];
+    removedFiles?: string[];
+}
+
 export type HostToWebviewCommand =
     | 'dataLoaded'
     | 'composing'
@@ -36,6 +46,7 @@ export type HostToWebviewCommand =
     | 'ollamaModelsLoaded'
     | 'providerPreferenceSaved'
     | 'error'
+    | 'warning'
     | 'connectionTested'
     | 'privacyPreviewLoaded'
     | 'diagnostics';
@@ -62,7 +73,7 @@ export type ComposerErrorCode =
 
 export interface ComposerErrorAction {
     label: string;
-    command: Extract<WebviewToHostCommand, 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection' | 'openWorkspace'>;
+    command: Extract<WebviewToHostCommand, 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection' | 'openWorkspace' | 'loadData' | 'triggerCompose'>;
 }
 
 export interface ComposerErrorPayload {
@@ -134,6 +145,7 @@ const HOST_COMMANDS = new Set<HostToWebviewCommand>([
     'ollamaModelsLoaded',
     'providerPreferenceSaved',
     'error',
+    'warning',
     'connectionTested',
     'privacyPreviewLoaded',
     'diagnostics',

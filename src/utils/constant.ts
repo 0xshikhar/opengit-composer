@@ -52,11 +52,8 @@ export const PROVIDERS: ProviderInfo[] = [
         models: [
             'gemini-3-pro',
             'gemini-3-flash',
-            'gemini-3-pro',
-            'gemini-3-flash',
             'gemini-2.5-flash',
             'gemini-2.5-pro',
-            'gemini-2.5-flash-lite',
             'gemini-2.5-flash-lite',
         ],
         baseUrl: 'apiKey',
@@ -205,9 +202,7 @@ export function resolveProviderHostAndModel(
         : (input.model || defaultModel);
     const baseUrl = input.provider === 'ollama'
         ? (input.ollamaHost || getProviderBaseUrl('ollama'))
-        ? (input.ollamaHost || getProviderBaseUrl('ollama'))
         : input.provider === 'lmstudio'
-            ? (input.lmStudioHost || getProviderBaseUrl('lmstudio'))
             ? (input.lmStudioHost || getProviderBaseUrl('lmstudio'))
             : input.baseUrl;
 

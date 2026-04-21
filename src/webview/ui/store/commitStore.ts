@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ComposerErrorAction, ComposerErrorCode, ComposerErrorSeverity } from '../../../types/messages';
 
 // Types duplicated for webview context (no vscode imports)
 export interface FileChange {
@@ -45,11 +46,19 @@ export interface ComposeSnapshot {
     generatedAt: number;
     fileCount: number;
     paths: string[];
+    excludePatterns?: string[];
 }
 
 export interface ComposeMeta {
     usedFallback: boolean;
     fallbackReason?: string;
+    aiRequestedModel?: string;
+    aiUsedModel?: string;
+    aiModelFailover?: boolean;
+    aiModelFailoverReason?: string;
+    aiRequestError?: string;
+    aiRequestCode?: string;
+    aiRequestStatus?: number;
     excludedFileCount: number;
     redactedMatchCount: number;
     invalidExcludePatterns?: string[];
@@ -69,13 +78,38 @@ export interface PrivacyPreview {
 
 export interface ProviderDiagnostics {
     provider: string;
-    code: string;
+    code: ComposerErrorCode;
     message: string;
     status?: number;
     requestId?: string;
     model?: string;
     details?: string;
     hint?: string;
+}
+
+export interface ComposerErrorState {
+    code: ComposerErrorCode;
+    severity: ComposerErrorSeverity;
+    recoverable: boolean;
+    message: string;
+    action?: ErrorAction | null;
+    diagnostics?: ProviderDiagnostics | null;
+}
+
+export interface ComposerWarningState {
+    code: 'STAGED_SNAPSHOT_STALE';
+    severity: 'warning';
+    recoverable: true;
+    message: string;
+    action?: ErrorAction | null;
+    addedFiles?: string[];
+    removedFiles?: string[];
+}
+
+export interface ForceCommitState {
+    pending: boolean;
+    type: 'single' | 'all' | null;
+    draftId?: string;
 }
 
 export interface ConnectionTestResult {
@@ -88,7 +122,7 @@ export interface ConnectionTestResult {
 
 export interface ErrorAction {
     label: string;
-    command: 'refresh' | 'compose' | 'retryCompose' | 'copySanitizedLogs' | 'testConnection';
+    command: ComposerErrorAction['command'];
 }
 
 interface CommitStoreState {
@@ -109,8 +143,9 @@ interface CommitStoreState {
     selectedFilePath: string | null;
     isLoading: boolean;
     isCommitting: boolean;
-    error: string | null;
-    errorAction: ErrorAction | null;
+    error: ComposerErrorState | null;
+    warning: ComposerWarningState | null;
+    forceCommit: ForceCommitState;
     commitProgress: { current: number; total: number } | null;
 
     // Provider config
@@ -140,7 +175,10 @@ interface CommitStoreState {
     selectFile: (path: string | null) => void;
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
-    setError: (error: string | null, action?: ErrorAction | null, diagnostics?: ProviderDiagnostics | null) => void;
+    setError: (error: ComposerErrorState | null) => void;
+    setWarning: (warning: ComposerWarningState | null) => void;
+    setForceCommit: (forceCommit: ForceCommitState) => void;
+    clearWarning: () => void;
     setCommitProgress: (progress: { current: number; total: number } | null) => void;
     setProviderConfig: (config: Partial<ProviderConfig>) => void;
     setActiveView: (view: 'tree' | 'diff' | 'editor' | 'compose') => void;
@@ -164,7 +202,14 @@ interface CommitStoreState {
     reset: () => void;
 }
 
-const generateId = () => Math.random().toString(36).substring(2, 10);
+const generateId = () => {
+    // Use crypto.randomUUID if available for better uniqueness guarantees
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for environments without crypto.randomUUID
+    return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+};
 
 export const useCommitStore = create<CommitStoreState>((set, get) => ({
     // Initial state
@@ -183,7 +228,8 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     isLoading: false,
     isCommitting: false,
     error: null,
-    errorAction: null,
+    warning: null,
+    forceCommit: { pending: false, type: null },
     commitProgress: null,
     providerConfig: {
         provider: 'openai',
@@ -206,14 +252,16 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             composeSnapshot: snapshot,
             composeMeta: meta,
             error: null,
-            errorAction: null,
             diagnostics: null,
         }),
     selectDraft: (id) => set({ selectedDraftId: id }),
     selectFile: (path) => set({ selectedFilePath: path, activeView: 'diff' }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
-    setError: (error, action = null, diagnostics = null) => set({ error, errorAction: action, diagnostics }),
+    setError: (error) => set({ error, diagnostics: error?.diagnostics || null }),
+    setWarning: (warning) => set({ warning }),
+    setForceCommit: (forceCommit) => set({ forceCommit }),
+    clearWarning: () => set({ warning: null, forceCommit: { pending: false, type: null } }),
     setCommitProgress: (progress) => set({ commitProgress: progress }),
     setProviderConfig: (config) =>
         set((state) => ({
@@ -325,7 +373,8 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             isLoading: false,
             isCommitting: false,
             error: null,
-            errorAction: null,
+            warning: null,
+            forceCommit: { pending: false, type: null },
             commitProgress: null,
             activeView: 'tree',
             ollamaModels: [],

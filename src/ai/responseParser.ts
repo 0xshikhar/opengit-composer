@@ -70,11 +70,15 @@ export class ResponseParser {
         const trimmed = response.trim();
         if (!trimmed) return '';
 
-        return trimmed
+        const normalized = trimmed
             .replace(/```(?:\w+)?\s*([\s\S]*?)\s*```/g, (_match, content: string) => content.trim())
             .replace(/```(?:\w+)?\n?/g, '')
             .replace(/```/g, '')
             .trim();
+
+        const [subjectLine, ...rest] = normalized.split('\n');
+        const cleanSubjectLine = this.normalizeCommitSubjectLine(subjectLine || '');
+        return [cleanSubjectLine, ...rest].join('\n').trim();
     }
 
     private static tryParsePayload(response: string): (ParsedPayload & { parseStrategy?: string; qualityScore?: number; details?: string }) | null {
@@ -447,6 +451,54 @@ export class ResponseParser {
         return cleaned.slice(0, 72);
     }
 
+    private static normalizeCommitSubjectLine(subjectLine: string): string {
+        const parsedPrefix = this.parseConventionalPrefix(subjectLine);
+        if (!parsedPrefix) {
+            return subjectLine.replace(/\s+/g, ' ').trim();
+        }
+
+        let remainder = parsedPrefix.remainder.trimStart();
+        let breaking = parsedPrefix.breaking || false;
+        while (true) {
+            const nestedPrefix = this.parseConventionalPrefix(remainder);
+            if (!nestedPrefix) {
+                break;
+            }
+
+            const sameType = nestedPrefix.type === parsedPrefix.type;
+            const sameScope =
+                !parsedPrefix.scope ||
+                !nestedPrefix.scope ||
+                nestedPrefix.scope === parsedPrefix.scope;
+
+            if (!sameType || !sameScope) {
+                break;
+            }
+
+            breaking = breaking || nestedPrefix.breaking;
+            remainder = nestedPrefix.remainder.trimStart();
+        }
+
+        const scope = parsedPrefix.scope ? `(${parsedPrefix.scope})` : '';
+        const prefix = `${parsedPrefix.type}${scope}${breaking ? '!' : ''}:`;
+        return remainder ? `${prefix} ${remainder}` : prefix;
+    }
+
+    private static parseConventionalPrefix(subject: string): { type: string; scope?: string; breaking: boolean; prefix: string; remainder: string } | null {
+        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?(!)?:\s*/i);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            type: match[1].toLowerCase(),
+            scope: match[2]?.toLowerCase(),
+            breaking: Boolean(match[3]),
+            prefix: match[0].trimEnd(),
+            remainder: subject.slice(match[0].length),
+        };
+    }
+
     private static normalizeConfidence(value: unknown): number {
         if (typeof value !== 'number' || Number.isNaN(value)) return 70;
         return Math.max(0, Math.min(100, Math.round(value)));
@@ -469,9 +521,11 @@ export class ResponseParser {
 
     private static formatCommitMessage(group: ParsedGroup): string {
         const scope = group.scope ? `(${group.scope})` : '';
-        const subject = group.subject || 'update staged changes';
+        const normalizedSubject = group.subject || 'update staged changes';
         const body = group.body?.trim();
-        return body ? `${group.type}${scope}: ${subject}\n\n${body}` : `${group.type}${scope}: ${subject}`;
+        const message = `${group.type}${scope}: ${normalizedSubject}`;
+        const normalizedMessage = this.normalizeCommitSubjectLine(message);
+        return body ? `${normalizedMessage}\n\n${body}` : normalizedMessage;
     }
 
     private static parseCommitMessage(message: string): { type?: string; scope?: string; subject: string; body?: string } | null {

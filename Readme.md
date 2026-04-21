@@ -15,12 +15,12 @@ Install it from the VS Code Extensions view when published to the marketplace.
 
 Download the VSIX directly:
 
-[Download `opengit-composer-2.0.1.vsix`](https://github.com/0xshikhar/opengit-composer/releases/download/v2.0.1/opengit-composer-2.0.1.vsix)
+[Download `opengit-composer-2.0.5.vsix`](https://github.com/0xshikhar/opengit-composer/releases/download/v2.0.5/opengit-composer-2.0.5.vsix)
 
 Then install it with:
 
 ```bash
-code --install-extension opengit-composer-2.0.1.vsix
+code --install-extension opengit-composer-2.0.5.vsix
 ```
 
 

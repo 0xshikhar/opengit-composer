@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../aiProvider';
+import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse, GenerateMessageOptions } from '../aiProvider';
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
@@ -15,6 +15,10 @@ export class OllamaProvider extends AIProvider {
     constructor(config: AIProviderConfig) {
         super(config);
         this.baseUrl = config.baseUrl || 'http://localhost:11434';
+        // Warn if baseUrl doesn't look like Ollama (typically port 11434 or /api path)
+        if (this.baseUrl && !this.baseUrl.includes('11434') && !this.baseUrl.includes('/api')) {
+            Logger.warn('OllamaProvider initialized with non-standard baseUrl', { baseUrl: this.baseUrl });
+        }
         Logger.info('OllamaProvider initialized', { model: config.model, baseUrl: this.baseUrl });
     }
 
@@ -37,7 +41,7 @@ export class OllamaProvider extends AIProvider {
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
-    async generateCommitMessage(files: FileChange[]): Promise<string> {
+    async generateCommitMessage(files: FileChange[], options?: GenerateMessageOptions): Promise<string> {
         Logger.info('OllamaProvider: Generating commit message', { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
@@ -66,8 +70,8 @@ export class OllamaProvider extends AIProvider {
         const models = await this.getAvailableModels();
         if (models.length === 0) {
             return {
-                available: true,
-                reason: 'Ollama server reachable, but no models were reported.',
+                available: false,
+                reason: 'Ollama server is reachable, but no models were reported. Pull or load a model before composing.',
                 models,
             };
         }
@@ -123,7 +127,9 @@ export class OllamaProvider extends AIProvider {
                     },
                     {
                         headers: { 'Content-Type': 'application/json' },
-                        timeout: 120000 // local models can be slow
+                        // Extended timeout for local models (10 minutes)
+                        // Local LLMs with reasoning can be very slow
+                        timeout: 600000,
                     }
                 ),
                 2

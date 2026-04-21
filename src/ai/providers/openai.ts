@@ -1,10 +1,16 @@
 import axios from 'axios';
-import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../aiProvider';
+import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse, GenerateMessageOptions } from '../aiProvider';
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import {
+    buildProviderError,
+    extractChatCompletionContent,
+    extractModelIds,
+    modelIdsMatch,
+    requestWithRetry,
+} from './providerUtils';
 
 export class OpenAIProvider extends AIProvider {
     private readonly endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -33,7 +39,12 @@ export class OpenAIProvider extends AIProvider {
         const responseTime = Date.now() - startTime;
         
         // OpenAI's chat completion format
-        const content = response.choices[0].message.content;
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+        }
         
         Logger.aiResponse(this.providerName, 200, content.length, responseTime);
         Logger.aiRawResponse(content);
@@ -46,17 +57,29 @@ export class OpenAIProvider extends AIProvider {
         Logger.warn('OpenAIProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = repairResponse.choices?.[0]?.message?.content || '';
+        let repairContent = '';
+        try {
+            repairContent = extractChatCompletionContent(repairResponse, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+            throw buildProviderError('OpenAI API Error', error);
+        }
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
-    async generateCommitMessage(files: FileChange[]): Promise<string> {
+    async generateCommitMessage(files: FileChange[], options?: GenerateMessageOptions): Promise<string> {
         Logger.info(`[${this.providerName}] Generating commit message`, { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
 
         const response = await this.makeRequest(prompt);
-        const content = response.choices[0].message.content;
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, this.providerName);
+        } catch (error) {
+            Logger.aiError(this.providerName, error);
+            throw buildProviderError('OpenAI API Error', error);
+        }
         
         Logger.aiRawResponse(content);
         

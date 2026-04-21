@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../aiProvider';
+import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse, GenerateMessageOptions } from '../aiProvider';
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
@@ -49,7 +49,7 @@ export class GeminiProvider extends AIProvider {
         return parsed;
     }
 
-    async generateCommitMessage(files: FileChange[]): Promise<string> {
+    async generateCommitMessage(files: FileChange[], options?: GenerateMessageOptions): Promise<string> {
         Logger.info('GeminiProvider: Generating commit message', { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt, 'text');
@@ -98,7 +98,45 @@ export class GeminiProvider extends AIProvider {
     }
 
     protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
-        const model = this.config.model || getProviderDefaultModel('gemini');
+        const primaryModel = this.config.model || getProviderDefaultModel('gemini');
+        const modelCandidates = this.buildModelCandidates(primaryModel);
+        let lastError: unknown;
+
+        Logger.debug('GeminiProvider: Request model candidates', {
+            primaryModel,
+            mode,
+            promptLength: prompt.length,
+            candidates: modelCandidates,
+        });
+
+        for (let index = 0; index < modelCandidates.length; index++) {
+            const candidate = modelCandidates[index];
+            try {
+                return await this.requestWithModel(candidate, prompt, mode);
+            } catch (error) {
+                lastError = error;
+                if (this.shouldFailoverToNextModel(error) && index < modelCandidates.length - 1) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    Logger.warn('GeminiProvider: Model request failed; trying next fallback model', {
+                        failedModel: candidate,
+                        nextModel: modelCandidates[index + 1],
+                        status: axios.isAxiosError(error) ? error.response?.status : undefined,
+                        code: axios.isAxiosError(error) ? error.code : undefined,
+                        message,
+                    });
+                    continue;
+                }
+
+                Logger.error('GeminiProvider: API request failed', error);
+                throw buildProviderError('Gemini API Error', error);
+            }
+        }
+
+        Logger.error('GeminiProvider: All candidate models failed', lastError);
+        throw buildProviderError('Gemini API Error', lastError);
+    }
+
+    private async requestWithModel(model: string, prompt: string, mode: 'json' | 'text'): Promise<any> {
         const url = `${this.endpoint}/${model}:generateContent?key=${this.config.apiKey}`;
 
         const executeRequest = async (useSchema: boolean): Promise<any> => {
@@ -131,9 +169,14 @@ export class GeminiProvider extends AIProvider {
                 3
             );
 
-            Logger.debug('GeminiProvider: API response received', { status: response.status });
+            Logger.debug('GeminiProvider: API response received', { model, status: response.status });
             return response.data;
         };
+
+        // Pre-compute normalized model IDs to avoid repeated calculations
+        const requestedModelId = normalizeModelId(this.config.model || getProviderDefaultModel('gemini'));
+        const usedModelId = normalizeModelId(model);
+        const hasFailover = usedModelId !== requestedModelId;
 
         try {
             Logger.debug('GeminiProvider: Making API request', {
@@ -141,29 +184,60 @@ export class GeminiProvider extends AIProvider {
                 mode,
                 promptLength: prompt.length,
             });
-            return await executeRequest(true);
+            const data = await executeRequest(true);
+            this.requestMeta = {
+                requestedModel: requestedModelId,
+                usedModel: usedModelId,
+                failover: hasFailover,
+                failoverReason: hasFailover
+                    ? `Gemini switched from ${requestedModelId} to ${usedModelId} after overload or availability errors.`
+                    : undefined,
+            };
+            return data;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+            const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+            const responseText = axios.isAxiosError(error)
+                ? `${typeof responseData === 'string' ? responseData : JSON.stringify(responseData || {})} ${message}`
+                : message;
             const isSchemaOrFormatError =
                 mode === 'json' &&
-                /responseSchema|responseMimeType|schema|JSON|invalid/i.test(message);
+                /responseSchema|responseMimeType|schema|JSON|invalid/i.test(responseText);
 
             if (isSchemaOrFormatError) {
                 Logger.warn('GeminiProvider: Retrying without response schema after request failure', {
                     model,
                     message,
                 });
-                try {
-                    return await executeRequest(false);
-                } catch (retryError) {
-                    Logger.error('GeminiProvider: API request failed after schema fallback', retryError);
-                    throw buildProviderError('Gemini API Error', retryError);
-                }
+                const data = await executeRequest(false);
+                this.requestMeta = {
+                    requestedModel: requestedModelId,
+                    usedModel: usedModelId,
+                    failover: hasFailover,
+                    failoverReason: hasFailover
+                        ? `Gemini switched from ${requestedModelId} to ${usedModelId} after overload or request-shape errors.`
+                        : undefined,
+                };
+                return data;
             }
 
-            Logger.error('GeminiProvider: API request failed', error);
-            throw buildProviderError('Gemini API Error', error);
+            throw error;
         }
+    }
+
+    private buildModelCandidates(primaryModel: string): string[] {
+        const normalizedPrimary = normalizeModelId(primaryModel);
+        return normalizedPrimary ? [normalizedPrimary] : [];
+    }
+
+    private shouldFailoverToNextModel(error: unknown): boolean {
+        if (!axios.isAxiosError(error)) {
+            return false;
+        }
+
+        const status = error.response?.status;
+        const message = `${error.message || ''} ${typeof error.response?.data === 'string' ? error.response.data : JSON.stringify(error.response?.data || {})}`;
+        return status === 503 || status === 429 || /high demand|temporarily unavailable|quota/i.test(message);
     }
 
     private extractTextContent(response: any): string {

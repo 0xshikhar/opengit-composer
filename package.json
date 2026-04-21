@@ -1,11 +1,11 @@
 {
   "name": "opengit-composer",
   "displayName": "OpenGit Composer",
-  "description": "AI-powered Git commit composer for VS Code. Groups staged changes into semantic commits with OpenAI, Anthropic, Groq, Google Gemini, Kimi, and Ollama.",
+  "description": "AI-powered Git commit composer for VS Code. Groups staged changes into semantic commits with OpenAI, Anthropic, Groq, Google Gemini, LM Studio, Kimi, and Ollama.",
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
-  "version": "2.0.1",
+  "version": "2.0.5",
   "license": "MIT",
   "icon": "icon.png",
   "homepage": "https://github.com/0xshikhar/opengit-composer",
@@ -24,6 +24,7 @@
     "anthropic",
     "claude",
     "gemini",
+    "lmstudio",
     "ollama",
     "conventional-commits",
     "gitmoji",
@@ -97,7 +98,9 @@
           "enum": [
             "openai",
             "anthropic",
+            "groq",
             "gemini",
+            "lmstudio",
             "kimi",
             "ollama"
           ],
@@ -118,6 +121,11 @@
           "type": "string",
           "default": "http://localhost:11434",
           "description": "Ollama server URL for local model inference"
+        },
+        "commitComposer.lmStudioHost": {
+          "type": "string",
+          "default": "http://localhost:1234/v1",
+          "description": "LM Studio server URL for local model inference"
         },
         "commitComposer.commitFormat": {
           "type": "string",

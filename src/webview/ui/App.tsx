@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useCommitStore } from './store/commitStore';
 import { useVSCodeAPI } from './hooks/useVSCodeAPI';
+import { HostToWebviewMessage } from '../../types/messages';
 import AIControls from './components/AIControls';
 import FileList from './components/FileList';
 import CommitTree from './components/CommitTree';
@@ -26,7 +27,16 @@ export default function App() {
     const bootstrap = useMemo(readBootstrapPayload, []);
     const isPanelMode = bootstrap.mode === 'panel';
     const autoComposeTriggered = useRef(false);
+    const composeInProgress = useRef(false);
     const logoUri = bootstrap.logoUri;
+
+    // Initialize provider config from bootstrap on mount to prevent showing wrong provider
+    useEffect(() => {
+        if (bootstrap.providerConfig) {
+            const { setProviderConfig } = useCommitStore.getState();
+            setProviderConfig(bootstrap.providerConfig);
+        }
+    }, [bootstrap.providerConfig]);
 
     const {
         stagedFiles,
@@ -43,6 +53,9 @@ export default function App() {
         setLoading,
         setCommitting,
         setError,
+        setWarning,
+        setForceCommit,
+        clearWarning,
         setCommitProgress,
         markCommitted,
         setProviderConfig,
@@ -69,29 +82,40 @@ export default function App() {
 
     // Listen for messages from the extension host
     useEffect(() => {
-        const unsub = onMessage((message) => {
+        const unsub = onMessage((message: HostToWebviewMessage & Record<string, any>) => {
             switch (message.command) {
                 case 'dataLoaded':
-                    if ((useCommitStore.getState().error || '').includes('Staged changes have changed since composition')) {
+                    if (message.data?.resetSession) {
+                        setDrafts([], null, null, null, null);
+                        useCommitStore.getState().selectDraft(null);
+                        useCommitStore.getState().selectFile(null);
+                        setActiveView('tree');
+                        clearWarning(); // Reset force commit state on session reset
+                    } else if (useCommitStore.getState().error?.code === 'STAGED_SNAPSHOT_STALE') {
                         setDrafts([], null, null, null, null);
                         setActiveView('tree');
+                        clearWarning(); // Reset force commit state on STALE error
                     }
-                    setStagedFiles(message.data.staged || []);
-                    setUnstagedFiles(message.data.unstaged || []);
-                    if (message.data.privacyPreview) {
+                    setStagedFiles(message.data?.staged || []);
+                    setUnstagedFiles(message.data?.unstaged || []);
+                    if (message.data?.privacyPreview) {
                         setPrivacyPreview(message.data.privacyPreview);
                     }
-                    setError(null, null);
+                    setError(null);
                     setDiagnostics(null);
-                    if (message.data.providerConfig) {
+                    clearWarning(); // Always clear warning on fresh data load
+                    if (message.data?.providerConfig) {
                         setProviderConfig(message.data.providerConfig);
                     }
-                    if (bootstrap.autoCompose && !autoComposeTriggered.current) {
+                    if (bootstrap.autoCompose && !autoComposeTriggered.current && !composeInProgress.current) {
                         autoComposeTriggered.current = true;
+                        composeInProgress.current = true;
                         composeInCurrentView({
-                            ...(message.data.providerConfig || {}),
+                            ...(message.data?.providerConfig || {}),
                             ...(bootstrap.providerConfig || {}),
                         });
+                        // Note: composeInCurrentView is synchronous (posts message)
+                        // The flag will be reset when 'composed' or 'error' message is received
                     }
                     break;
 
@@ -101,6 +125,7 @@ export default function App() {
                     break;
 
                 case 'composed':
+                    composeInProgress.current = false;
                     setDrafts(
                         message.drafts || [],
                         message.reasoning,
@@ -134,10 +159,28 @@ export default function App() {
                 case 'commitAllDone':
                     setCommitting(false);
                     setCommitProgress(null);
+                    clearWarning();
+                    break;
+
+                case 'warning':
+                    setWarning(message.warning || null);
+                    if (message.warning?.code === 'STAGED_SNAPSHOT_STALE') {
+                        // Track that we need force commit on next attempt
+                        const isCommitAll = message.warning?.action?.command === 'commitAll';
+                        setForceCommit({
+                            pending: true,
+                            type: isCommitAll ? 'all' : 'single',
+                            draftId: useCommitStore.getState().selectedDraftId || undefined,
+                        });
+                    }
+                    setLoading(false);
+                    setCommitting(false);
                     break;
 
                 case 'error':
-                    setError(message.message, message.action || null, message.diagnostics || null);
+                    composeInProgress.current = false;
+                    setError(message.error || null);
+                    clearWarning();
                     setLoading(false);
                     setCommitting(false);
                     break;
@@ -165,6 +208,9 @@ export default function App() {
         setCommitProgress,
         setDrafts,
         setError,
+        setWarning,
+        setForceCommit,
+        clearWarning,
         setLoading,
         setProviderConfig,
         setPrivacyPreview,
@@ -181,7 +227,12 @@ export default function App() {
     const handleCommitAll = () => {
         const pending = drafts.filter(d => d.state !== 'committed');
         if (pending.length === 0) return;
-        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot });
+
+        // Check if we have a pending force commit warning
+        const { forceCommit } = useCommitStore.getState();
+        const force = forceCommit.pending && forceCommit.type === 'all';
+
+        postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot, force });
     };
 
     const handleRefresh = () => {

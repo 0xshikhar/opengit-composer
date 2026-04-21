@@ -71,6 +71,50 @@ suite('ResponseParser Test Suite', () => {
         assert.strictEqual(message.includes('Handles non-standard JSON wrappers.'), true);
     });
 
+    test('should normalize repeated conventional prefixes in parsed subjects', () => {
+        const changes = [change('src/core/a.ts')];
+        const response = JSON.stringify({
+            groups: [
+                {
+                    files: ['src/core/a.ts'],
+                    type: 'feat',
+                    scope: 'session',
+                    subject: 'feat: implement user session management',
+                    confidence: 90,
+                },
+            ],
+        });
+
+        const parsed = ResponseParser.parseGroupingResponse(response, changes);
+
+        assert.strictEqual(
+            parsed.groups[0].message,
+            'feat(session): implement user session management'
+        );
+    });
+
+    test('should preserve breaking change markers when normalizing repeated prefixes', () => {
+        const changes = [change('src/core/b.ts')];
+        const response = JSON.stringify({
+            groups: [
+                {
+                    files: ['src/core/b.ts'],
+                    type: 'feat',
+                    scope: 'session',
+                    subject: 'feat!: implement user session management',
+                    confidence: 90,
+                },
+            ],
+        });
+
+        const parsed = ResponseParser.parseGroupingResponse(response, changes);
+
+        assert.strictEqual(
+            parsed.groups[0].message,
+            'feat(session)!: implement user session management'
+        );
+    });
+
     test('should mark parser fallback metadata when response is unparseable', () => {
         const changes = [change('src/d.ts'), change('src/e.ts')];
         const parsed = ResponseParser.parseGroupingResponse('totally-not-json', changes);
@@ -266,6 +310,17 @@ suite('ResponseParser Test Suite', () => {
         // Current implementation removes code blocks completely
         // which means it also removes content - this is a known issue
         assert.ok(result.includes('before') || result.includes('after'));
+    });
+
+    test('should normalize repeated conventional prefixes in message responses', () => {
+        const result = ResponseParser.parseMessageResponse(
+            'feat(core): feat(core): improve commit composer\n\nKeep the parser output clean.'
+        );
+
+        assert.strictEqual(
+            result,
+            'feat(core): improve commit composer\n\nKeep the parser output clean.'
+        );
     });
 
     test('should handle single quote JSON repair', () => {

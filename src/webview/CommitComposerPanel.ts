@@ -2,9 +2,12 @@ import * as vscode from 'vscode';
 import { GitService } from '../git/gitService';
 import { AIProviderFactory } from '../ai/aiProviderFactory';
 import { AIProvider } from '../ai/aiProvider';
+import { ConfigLoader } from '../core/configLoader';
 import { CommitGroup } from '../types/commits';
 import { FileChange } from '../types/git';
 import { Logger } from '../utils/logger';
+import { isWebviewToHostMessage, WebviewToHostMessage } from '../types/messages';
+import { postError } from '../features/support/errorMapper';
 
 export class CommitComposerPanel {
     public static currentPanel: CommitComposerPanel | undefined;
@@ -117,10 +120,20 @@ export class CommitComposerPanel {
 
     private _setWebviewMessageListener() {
         this._panel.webview.onDidReceiveMessage(
-            async (message) => {
+            async (message: WebviewToHostMessage | unknown) => {
+                if (!isWebviewToHostMessage(message)) {
+                    Logger.warn('CommitComposerPanel: Ignoring unknown webview message', {
+                        hasPayload: message !== null && typeof message === 'object',
+                        messageType: message && typeof message === 'object'
+                            ? String((message as { command?: unknown }).command || 'unknown')
+                            : typeof message,
+                    });
+                    return;
+                }
+
                 Logger.debug('CommitComposerPanel: Received message from webview', { command: message.command });
 
-                switch (message.command) { // Using 'command' instead of 'type' to be consistent if needed, but 'type' is fine.
+                switch (message.command) {
                     case 'loadData':
                         await this.loadChanges();
                         break;
@@ -128,7 +141,7 @@ export class CommitComposerPanel {
                         await this.handleGenerate(message.providerConfig);
                         break;
                     case 'commit':
-                        await this.handleCommit(message.group);
+                        await this.handleCommit(message.group as CommitGroup);
                         break;
                 }
             },
@@ -149,24 +162,27 @@ export class CommitComposerPanel {
             });
         } catch (e) {
             Logger.error('CommitComposerPanel: Failed to load changes', e);
-            this._panel.webview.postMessage({
-                command: 'error',
-                message: (e as Error).message
-            });
+            await postError(this._panel.webview, e, new ConfigLoader());
         }
     }
 
     private async handleGenerate(config: any) {
         try {
+            const model = config.model || '';
             Logger.info('CommitComposerPanel: Generating commits', {
                 provider: config.provider,
-                model: config.model
+                model
             });
 
             // Use factory to create provider
             this.aiProvider = AIProviderFactory.create(config.provider, {
                 apiKey: config.apiKey,
-                model: config.model
+                model,
+                baseUrl: config.baseUrl || (config.provider === 'ollama'
+                    ? 'http://localhost:11434'
+                    : config.provider === 'lmstudio'
+                        ? 'http://localhost:1234/v1'
+                        : undefined),
             });
 
             const changes = await this.gitService.getStagedChanges();
@@ -186,10 +202,7 @@ export class CommitComposerPanel {
 
         } catch (e) {
             Logger.error('CommitComposerPanel: Failed to generate commits', e);
-            this._panel.webview.postMessage({
-                command: 'error',
-                message: (e as Error).message
-            });
+            await postError(this._panel.webview, e, new ConfigLoader());
         }
     }
 

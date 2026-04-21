@@ -29,6 +29,39 @@ function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function parseRetryAfter(headerValue: unknown): number | undefined {
+    if (typeof headerValue !== 'string') {
+        return undefined;
+    }
+
+    if (headerValue.trim().length === 0) {
+        return undefined;
+    }
+
+    if (headerValue.trim().length === 0) {
+        return undefined;
+    }
+
+    const seconds = Number(headerValue);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.floor(seconds * 1000);
+    }
+
+    const retryDate = Date.parse(headerValue);
+    if (!Number.isNaN(retryDate)) {
+        return Math.max(0, retryDate - Date.now());
+    }
+
+    return undefined;
+}
+
+export interface ProviderErrorDetails {
+    message: string;
+    code?: string;
+    status?: number;
+    details?: string;
+}
+
 export function isRetriableError(error: unknown): boolean {
     if (!axios.isAxiosError(error)) return false;
 
@@ -65,16 +98,23 @@ export async function requestWithRetry<T>(
                 throw error;
             }
 
-            const backoffMs = Math.min(4000, 400 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 120);
+            const computedBackoffMs = Math.min(4000, 400 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 120);
+            const retryAfterMs = axios.isAxiosError(error)
+                ? parseRetryAfter(error.response?.headers?.['retry-after'])
+                : undefined;
+            const delayMs = typeof retryAfterMs === 'number' ? Math.max(computedBackoffMs, retryAfterMs) : computedBackoffMs;
             Logger.warn(`${label}: transient AI request failure; retrying`, {
                 attempt,
                 maxAttempts,
-                backoffMs,
+                computedBackoffMs,
+                retryAfterMs,
+                delayMs,
                 code: axios.isAxiosError(error) ? error.code : undefined,
                 status: axios.isAxiosError(error) ? error.response?.status : undefined,
+                retryAfter: axios.isAxiosError(error) ? error.response?.headers?.['retry-after'] : undefined,
                 message: error instanceof Error ? error.message : String(error),
             });
-            await sleep(backoffMs);
+            await sleep(delayMs);
         }
     }
 
@@ -85,7 +125,8 @@ export function normalizeModelId(model: string): string {
     return model
         .trim()
         .replace(/^publishers\/[^/]+\/models\//, '')
-        .replace(/^models\//, '');
+        .replace(/^models\//, '')
+        .replace(/-(\d+)\.0+(?=-|$)/g, '-$1'); // Normalize version numbers like 3.0 -> 3
 }
 
 export function modelIdsMatch(selectedModel: string, availableModel: string): boolean {
@@ -108,20 +149,80 @@ export function extractModelIds(payload: unknown): string[] {
         .map((model: string) => normalizeModelId(model));
 }
 
+export function extractChatCompletionContent(response: any, providerName: string): string {
+    const content = response?.choices?.[0]?.message?.content;
+    if (typeof content === 'string' && content.trim()) {
+        return content;
+    }
+
+    throw new Error(`${providerName} response did not include commit message content.`);
+}
+
+export function extractGeminiContent(response: any, providerName: string): string {
+    const candidates = response?.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+        const blockReason = response?.promptFeedback?.blockReason;
+        if (blockReason) {
+            throw new Error(`${providerName} response blocked: ${blockReason}`);
+        }
+        throw new Error(`${providerName} response did not include any candidates`);
+    }
+
+    const candidate = candidates[0];
+    const parts = candidate?.content?.parts;
+    const text = Array.isArray(parts)
+        ? parts
+            .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+            .join('\n')
+            .trim()
+        : '';
+
+    if (text) {
+        return text;
+    }
+
+    if (candidate?.finishReason) {
+        throw new Error(`${providerName} response had no text content (finish reason: ${candidate.finishReason})`);
+    }
+
+    throw new Error(`${providerName} response had no text content`);
+}
+
 export function buildProviderError(prefix: string, error: unknown): Error {
+    const details = describeProviderError(error);
+    const wrapped = new Error(`${prefix}: ${details.message}`) as Error & ProviderErrorDetails;
+    wrapped.code = details.code;
+    wrapped.status = details.status;
+    wrapped.details = details.details;
+    return wrapped;
+}
+
+export function describeProviderError(error: unknown): ProviderErrorDetails {
     if (axios.isAxiosError(error)) {
         const responseData = error.response?.data as any;
         const apiMessage =
             responseData?.error?.message ||
             responseData?.message ||
             (typeof responseData === 'string' ? responseData : undefined);
-        const message = apiMessage || error.message;
-        return new Error(`${prefix}: ${message}`);
+        const details: ProviderErrorDetails = {
+            message: apiMessage || error.message,
+            code: error.code,
+            status: error.response?.status,
+        };
+        if (typeof responseData?.error?.details === 'string') {
+            details.details = responseData.error.details;
+        } else if (typeof responseData?.details === 'string') {
+            details.details = responseData.details;
+        }
+        return details;
     }
 
-    if (error instanceof Error) {
-        return new Error(`${prefix}: ${error.message}`);
-    }
-
-    return new Error(`${prefix}: ${String(error)}`);
+    const fallback = error instanceof Error ? error : new Error(String(error));
+    const generic = fallback as Error & ProviderErrorDetails;
+    return {
+        message: generic.message,
+        code: generic.code,
+        status: generic.status,
+        details: generic.details,
+    };
 }

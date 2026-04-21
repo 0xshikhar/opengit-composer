@@ -3,7 +3,7 @@ import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
 export default function StatusBar() {
-    const { isLoading, isCommitting, error, errorAction, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
+    const { isLoading, isCommitting, error, warning, forceCommit, commitProgress, drafts, reasoning, summary, composeMeta, diagnostics } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     if (isCommitting && commitProgress) {
@@ -30,22 +30,45 @@ export default function StatusBar() {
         );
     }
 
-    if (error) {
+    if (warning) {
         return (
-            <div className="status-bar status-error">
-                <span className="status-icon">⚠️</span>
-                <span className="error-text">{error}</span>
-                {diagnostics && (
-                    <span className="status-privacy" title={diagnostics.details || diagnostics.message}>
-                        {diagnostics.provider}:{diagnostics.code}{diagnostics.status ? ` • ${diagnostics.status}` : ''}
-                    </span>
+            <div className="status-bar status-warning">
+                <span className="status-icon">⚡</span>
+                <span className="warning-text">{warning.message}</span>
+                <span className="status-fallback-badge status-warning-badge">{warning.code}</span>
+                {forceCommit?.pending && (
+                    <span className="status-hint">(Click commit again to force)</span>
                 )}
-                {errorAction && (
+                {warning.action && (
                     <button
                         className="btn btn-sm status-inline-action"
-                        onClick={() => postMessage(errorAction.command)}
+                        onClick={() => postMessage(warning.action!.command)}
                     >
-                        {errorAction.label}
+                        {warning.action.label}
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className={`status-bar status-error status-error-${error.severity}`}>
+                <span className="status-icon">⚠️</span>
+                <span className="error-text">{error.message}</span>
+                <span className="status-fallback-badge">{error.code}</span>
+                <span className="status-fallback-badge">{error.severity}</span>
+                {error.diagnostics && (
+                    <span className="status-privacy" title={error.diagnostics.details || error.diagnostics.message}>
+                        {error.diagnostics.provider}:{error.diagnostics.code}{error.diagnostics.status ? ` • ${error.diagnostics.status}` : ''}
+                    </span>
+                )}
+                {error.action && (
+                    <button
+                        className="btn btn-sm status-inline-action"
+                        onClick={() => postMessage(error.action!.command)}
+                    >
+                        {error.action.label}
                     </button>
                 )}
             </div>
@@ -58,6 +81,8 @@ export default function StatusBar() {
         const avgConfidence = Math.round(
             drafts.reduce((acc, d) => acc + d.confidence, 0) / total
         );
+        const modelFailoverActive = composeMeta?.aiModelFailover;
+        const aiRequestFailed = composeMeta?.fallbackReason === 'ai_request_failed' || !!composeMeta?.aiRequestError;
 
         return (
             <div className="status-bar status-ready">
@@ -74,6 +99,22 @@ export default function StatusBar() {
                 {composeMeta?.usedFallback && (
                     <span className="status-fallback-badge" title={composeMeta.fallbackReason || 'Fallback mode'}>
                         fallback
+                    </span>
+                )}
+                {aiRequestFailed && (
+                    <span
+                        className="status-fallback-badge"
+                        title={composeMeta?.aiRequestError || 'AI request failed'}
+                    >
+                        ai request failed
+                    </span>
+                )}
+                {modelFailoverActive && (
+                    <span
+                        className="status-fallback-badge"
+                        title={`Model failover: ${composeMeta?.aiRequestedModel || 'primary'} → ${composeMeta?.aiUsedModel || 'fallback'}`}
+                    >
+                        model failover
                     </span>
                 )}
                 {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (

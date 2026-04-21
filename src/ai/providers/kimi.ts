@@ -1,10 +1,16 @@
 import axios from 'axios';
-import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../aiProvider';
+import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse, GenerateMessageOptions } from '../aiProvider';
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
-import { buildProviderError, extractModelIds, modelIdsMatch, requestWithRetry } from './providerUtils';
+import {
+    buildProviderError,
+    extractChatCompletionContent,
+    extractModelIds,
+    modelIdsMatch,
+    requestWithRetry,
+} from './providerUtils';
 
 /**
  * Kimi (Moonshot) provider — uses OpenAI-compatible API format.
@@ -23,7 +29,14 @@ export class KimiProvider extends AIProvider {
         const prompt = PromptBuilder.buildGroupingPrompt(changes, options);
         const response = await this.makeRequest(prompt);
 
-        const content = response.choices[0].message.content;
+        let content = '';
+        try {
+            content = extractChatCompletionContent(response, 'Kimi');
+        } catch (error) {
+            Logger.warn('KimiProvider: Response content extraction failed, falling back to parser heuristics', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
             return parsed;
@@ -32,19 +45,35 @@ export class KimiProvider extends AIProvider {
         Logger.warn('KimiProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = repairResponse.choices?.[0]?.message?.content || '';
+        let repairContent = '';
+        try {
+            repairContent = extractChatCompletionContent(repairResponse, 'Kimi');
+        } catch (error) {
+            Logger.warn('KimiProvider: Repair response content extraction failed', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+            throw buildProviderError('Kimi API Error', error);
+        }
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
-    async generateCommitMessage(files: FileChange[]): Promise<string> {
+    async generateCommitMessage(files: FileChange[], options?: GenerateMessageOptions): Promise<string> {
         Logger.info('KimiProvider: Generating commit message', { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
 
-        return ResponseParser.parseMessageResponse(
-            response.choices[0].message.content
-        );
+        // Extract content with error handling - only wrap extraction, not parsing
+        let content: string;
+        try {
+            content = extractChatCompletionContent(response, 'Kimi');
+        } catch (error) {
+            Logger.error('KimiProvider: Response content extraction failed', error);
+            throw buildProviderError('Kimi API Error', error);
+        }
+
+        // Parse outside try/catch so parse errors propagate naturally
+        return ResponseParser.parseMessageResponse(content);
     }
 
     async validateApiKey(): Promise<boolean> {

@@ -10,6 +10,8 @@ import { Logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { applyPrivacyPolicyToChanges } from './privacyPolicy';
 import { FileClassifier } from './parser/fileClassifier';
+import { describeProviderError } from '../ai/providers/providerUtils';
+import { isLocalProvider, resolveProviderHostAndModel } from '../utils/constant';
 
 export interface ComposeProviderConfig {
     provider: string;
@@ -24,11 +26,19 @@ export interface ComposeSnapshot {
     generatedAt: number;
     fileCount: number;
     paths: string[];
+    excludePatterns?: string[];
 }
 
 export interface ComposeMeta {
     usedFallback: boolean;
     fallbackReason?: string;
+    aiRequestedModel?: string;
+    aiUsedModel?: string;
+    aiModelFailover?: boolean;
+    aiModelFailoverReason?: string;
+    aiRequestError?: string;
+    aiRequestCode?: string;
+    aiRequestStatus?: number;
     excludedFileCount: number;
     redactedMatchCount: number;
     invalidExcludePatterns?: string[];
@@ -102,7 +112,21 @@ export class Orchestrator {
             drafts: DraftCommit[];
             reasoning?: string;
             summary?: string;
-            meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
+            meta?: Pick<
+                ComposeMeta,
+                | 'usedFallback'
+                | 'fallbackReason'
+                | 'aiRequestedModel'
+                | 'aiUsedModel'
+                | 'aiModelFailover'
+                | 'aiModelFailoverReason'
+                | 'aiRequestError'
+                | 'aiRequestCode'
+                | 'aiRequestStatus'
+                | 'parserFallbackStrategy'
+                | 'parserFallbackDetails'
+                | 'parserQualityScore'
+            >;
         };
         if (providerConfig) {
             const resolvedProviderConfig = this.resolveProviderConfig(providerConfig, config);
@@ -115,7 +139,9 @@ export class Orchestrator {
         const multiDraftNormalization = await this.enforceMultiDraftRequirement(
             eligibleChanges,
             composeResult.drafts,
-            config
+            config,
+            context,
+            providerConfig?.additionalInstructions
         );
         composeResult.drafts = multiDraftNormalization.drafts;
         if (multiDraftNormalization.applied) {
@@ -126,10 +152,17 @@ export class Orchestrator {
             composeResult.summary = `Prepared ${composeResult.drafts.length} draft commits (${multiDraftNormalization.strategy}).`;
         }
 
-        const snapshot = this.buildComposeSnapshot(eligibleChanges);
+        const snapshot = this.buildComposeSnapshot(eligibleChanges, config.excludePatterns);
         const meta: ComposeMeta = {
             usedFallback: composeResult.meta?.usedFallback ?? false,
             fallbackReason: composeResult.meta?.fallbackReason,
+            aiRequestedModel: composeResult.meta?.aiRequestedModel,
+            aiUsedModel: composeResult.meta?.aiUsedModel,
+            aiModelFailover: composeResult.meta?.aiModelFailover,
+            aiModelFailoverReason: composeResult.meta?.aiModelFailoverReason,
+            aiRequestError: composeResult.meta?.aiRequestError,
+            aiRequestCode: composeResult.meta?.aiRequestCode,
+            aiRequestStatus: composeResult.meta?.aiRequestStatus,
             excludedFileCount: privacyResult.excludedPaths.length,
             redactedMatchCount: privacyResult.redactedMatches,
             invalidExcludePatterns: privacyResult.invalidExcludePatterns,
@@ -160,16 +193,22 @@ export class Orchestrator {
     } {
         const provider = providerConfig.provider || config.provider;
         const apiKey = providerConfig.apiKey || config.apiKey || '';
-        const model =
-            providerConfig.model ||
-            config.model ||
-            AIProviderFactory.getDefaultModel(provider);
-        const baseUrl =
-            providerConfig.baseUrl ||
-            config.baseUrl ||
-            (provider === 'ollama' ? config.ollamaHost : undefined);
+        const resolved = resolveProviderHostAndModel(
+            {
+                provider,
+                model: config.model,
+                baseUrl: config.baseUrl,
+                ollamaHost: config.ollamaHost,
+                lmStudioHost: config.lmStudioHost,
+            },
+            AIProviderFactory.getDefaultModel(provider)
+        );
+        const model = isLocalProvider(provider)
+            ? (providerConfig.model || '') // Local providers: only use explicitly provided model, never from global config
+            : (providerConfig.model || resolved.model);
+        const baseUrl = providerConfig.baseUrl || resolved.baseUrl;
 
-        if (provider !== 'ollama' && !apiKey) {
+        if (!isLocalProvider(provider) && !apiKey) {
             throw new Error(
                 `No API key configured for ${provider}. Set commitComposer.apiKey in Settings or enter it in the OpenGit Composer panel.`
             );
@@ -202,7 +241,21 @@ export class Orchestrator {
         drafts: DraftCommit[];
         reasoning?: string;
         summary?: string;
-        meta?: Pick<ComposeMeta, 'usedFallback' | 'fallbackReason' | 'parserFallbackStrategy' | 'parserFallbackDetails' | 'parserQualityScore'>;
+        meta?: Pick<
+            ComposeMeta,
+            | 'usedFallback'
+            | 'fallbackReason'
+            | 'aiRequestedModel'
+            | 'aiUsedModel'
+            | 'aiModelFailover'
+            | 'aiModelFailoverReason'
+            | 'aiRequestError'
+            | 'aiRequestCode'
+            | 'aiRequestStatus'
+            | 'parserFallbackStrategy'
+            | 'parserFallbackDetails'
+            | 'parserQualityScore'
+        >;
     }> {
         const aiConfig: AIProviderConfig = {
             apiKey: providerConfig.apiKey,
@@ -233,6 +286,15 @@ export class Orchestrator {
                 });
             }
 
+            const requestMeta = this.aiProvider?.consumeRequestMeta();
+            if (requestMeta?.failover) {
+                Logger.warn('Orchestrator: AI provider model failover occurred', {
+                    provider: providerConfig.provider,
+                    requestedModel: requestMeta.requestedModel,
+                    usedModel: requestMeta.usedModel,
+                    reason: requestMeta.failoverReason,
+                });
+            }
             const drafts: DraftCommit[] = result.groups.map(group => ({
                 id: group.id || uuidv4(),
                 message: this.normalizeCommitMessage(group.message),
@@ -257,12 +319,26 @@ export class Orchestrator {
                     fallbackReason: result.parserMeta?.usedFallback
                         ? `parser:${result.parserMeta.strategy}`
                         : undefined,
+                    aiRequestedModel: requestMeta?.requestedModel,
+                    aiUsedModel: requestMeta?.usedModel,
+                    aiModelFailover: requestMeta?.failover,
+                    aiModelFailoverReason: requestMeta?.failoverReason,
                     parserFallbackStrategy: result.parserMeta?.usedFallback ? result.parserMeta.strategy : undefined,
                     parserFallbackDetails: result.parserMeta?.details,
                     parserQualityScore: result.parserMeta?.qualityScore,
                 },
             };
         } catch (error) {
+            const failure = describeProviderError(error);
+            this.aiProvider = undefined;
+            Logger.warn('Orchestrator: AI request failed; falling back to heuristics', {
+                provider: providerConfig.provider,
+                model: providerConfig.model,
+                status: failure.status,
+                code: failure.code,
+                message: failure.message,
+                details: failure.details,
+            });
             Logger.error('Orchestrator: AI composition failed, falling back to heuristics', error);
             // Fall back to heuristic grouping instead of throwing
             const heuristicResult = await this.composeWithHeuristics(changes, context, config);
@@ -271,6 +347,10 @@ export class Orchestrator {
                 meta: {
                     usedFallback: true,
                     fallbackReason: 'ai_request_failed',
+                    aiRequestedModel: providerConfig.model,
+                    aiRequestError: failure.message,
+                    aiRequestCode: failure.code,
+                    aiRequestStatus: failure.status,
                 },
             };
         }
@@ -344,7 +424,9 @@ export class Orchestrator {
     private async enforceMultiDraftRequirement(
         changes: FileChange[],
         drafts: DraftCommit[],
-        config: ComposerConfig
+        config: ComposerConfig,
+        context?: RepoContext,
+        additionalInstructions?: string
     ): Promise<{ drafts: DraftCommit[]; applied: boolean; strategy: string }> {
         if (changes.length <= 1) {
             return { drafts, applied: false, strategy: 'single-file-noop' };
@@ -361,7 +443,9 @@ export class Orchestrator {
         }
 
         const semanticDrafts = await Promise.all(
-            semanticGroups.map((group, index) => this.createForcedDraft(group.name, group.files, index, config.maxSubjectLength))
+            semanticGroups.map((group, index) =>
+                this.createForcedDraft(group.name, group.files, index, config.maxSubjectLength, context, config.commitFormat, additionalInstructions)
+            )
         );
 
         return {
@@ -392,7 +476,10 @@ export class Orchestrator {
         groupName: string,
         files: FileChange[],
         index: number,
-        maxSubjectLength: number
+        maxSubjectLength: number,
+        context?: RepoContext,
+        commitFormat?: 'conventional' | 'angular' | 'gitmoji' | 'custom',
+        additionalInstructions?: string
     ): Promise<DraftCommit> | DraftCommit {
         let message = this.buildHeuristicCommitMessage(
             'chore',
@@ -402,7 +489,12 @@ export class Orchestrator {
         );
 
         if (this.aiProvider) {
-            return this.aiProvider.generateCommitMessage(files)
+            return this.aiProvider.generateCommitMessage(files, {
+                context,
+                commitFormat,
+                maxSubjectLength,
+                additionalInstructions,
+            })
                 .then(aiMessage => {
                     if (aiMessage && aiMessage.trim()) {
                         message = this.normalizeCommitMessage(aiMessage.trim());
@@ -423,24 +515,47 @@ export class Orchestrator {
     }
 
     private normalizeConventionalSubject(subject: string): string {
-        const prefixMatch = subject.match(/^([a-z]+(?:\([^)]+\))?!?:)\s*/i);
-        if (!prefixMatch) {
+        const parsedPrefix = this.parseConventionalPrefix(subject);
+        if (!parsedPrefix) {
             return subject;
         }
 
-        const prefix = prefixMatch[1];
-        let remainder = subject.slice(prefixMatch[0].length).trimStart();
-        const duplicatePrefix = new RegExp(`^${this.escapeRegExp(prefix)}\\s*`, 'i');
+        let remainder = parsedPrefix.remainder.trimStart();
 
-        while (duplicatePrefix.test(remainder)) {
-            remainder = remainder.replace(duplicatePrefix, '').trimStart();
+        while (true) {
+            const nestedPrefix = this.parseConventionalPrefix(remainder);
+            if (!nestedPrefix) {
+                break;
+            }
+
+            const sameType = nestedPrefix.type === parsedPrefix.type;
+            const sameScope =
+                !parsedPrefix.scope ||
+                !nestedPrefix.scope ||
+                nestedPrefix.scope === parsedPrefix.scope;
+
+            if (!sameType || !sameScope) {
+                break;
+            }
+
+            remainder = nestedPrefix.remainder.trimStart();
         }
 
-        return remainder ? `${prefix} ${remainder}` : prefix;
+        return remainder ? `${parsedPrefix.prefix} ${remainder}` : parsedPrefix.prefix;
     }
 
-    private escapeRegExp(value: string): string {
-        return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    private parseConventionalPrefix(subject: string): { type: string; scope?: string; prefix: string; remainder: string } | null {
+        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?!?:\s*/i);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            type: match[1].toLowerCase(),
+            scope: match[2]?.toLowerCase(),
+            prefix: match[0].trimEnd(),
+            remainder: subject.slice(match[0].length),
+        };
     }
 
     private buildForcedDraftPayload(
@@ -504,7 +619,7 @@ export class Orchestrator {
         return groups;
     }
 
-    private buildComposeSnapshot(changes: FileChange[]): ComposeSnapshot {
+    private buildComposeSnapshot(changes: FileChange[], excludePatterns?: string[]): ComposeSnapshot {
         const sorted = [...changes].sort((left, right) => left.path.localeCompare(right.path));
         const fingerprint = sorted
             .map(change => `${change.path}|${change.changeType}|${change.additions}|${change.deletions}`)
@@ -515,6 +630,7 @@ export class Orchestrator {
             generatedAt: Date.now(),
             fileCount: sorted.length,
             paths: sorted.map(change => change.path),
+            excludePatterns: excludePatterns ? [...excludePatterns] : undefined,
         };
     }
 

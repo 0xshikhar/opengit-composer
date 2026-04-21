@@ -75,7 +75,7 @@ export default function CommitTreeItem({ draft, isSelected, onSelect }: Props) {
                                 <span className={`change-badge ${f.changeType}`}>
                                     {f.changeType[0].toUpperCase()}
                                 </span>
-                                <span className="file-name">{f.path.split('/').pop()}</span>
+                                <span className="file-name">{f.path.replace(/\\/g, '/').split('/').pop()}</span>
                                 <span className="file-path">{f.path}</span>
                             </div>
                         ))}

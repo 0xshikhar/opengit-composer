@@ -1,159 +1,181 @@
-# OpenGit Composer - Testing Guide
+# OpenGit Composer Testing Guide
 
-## Prerequisites
+This guide covers automated checks and manual QA for current extension behavior.
+
+## 1. Prerequisites
 
 - Node.js 18+
-- pnpm (`npm install -g pnpm`)
-- VSCode 1.85+
-- A test Git repository with staged changes
+- `pnpm` 10+
+- VS Code 1.85+
+- A git repository with staged changes
 
-## Installation for Testing
-
-### Option 1: Install from VSIX (Recommended for Testing)
+## 2. Automated Test Commands
 
 ```bash
-# Build the extension
+# lint
+pnpm run lint
+
+# unit tests
+pnpm run test
+
+# build both extension + webview
+pnpm run compile
+
+# integration harness
+pnpm run test:integration
+```
+
+Minimum pre-merge quality bar:
+1. `pnpm run lint`
+2. `pnpm run test`
+3. `pnpm run compile`
+
+## 3. Install Extension for Manual Testing
+
+### Option A: VSIX install
+
+```bash
 pnpm install
 pnpm run compile
 pnpm run package:vsix
-
-# The VSIX will be in:
-# - macOS: ~/.vscode/extensions/
-# - Or use "Install from VSIX" in VSCode (Cmd+Shift+P -> "Install from VSIX")
 ```
 
-### Option 2: Development Mode (Using vscode-test-electron)
+Then install generated `.vsix` from VS Code Command Palette:
+- `Extensions: Install from VSIX...`
 
-```bash
-pnpm install
-pnpm run compile
-pnpm run test:integration
-```
+### Option B: Extension Development Host
 
-## Manual Testing Checklist
+Run/debug from VS Code extension host and verify behaviors there.
 
-### Step 1: Verify Extension Installation
+## 4. Core Manual Smoke Checklist
 
-1. Open VSCode
-2. Go to Extensions (`Cmd+Shift+X`)
-3. Search for "OpenGit Composer" or "0xshikhar"
-4. Verify the extension is installed and shows v2.0.0
+### 4.1 Activation and UI
 
-### Step 2: Verify Sidebar Appears
+1. Open VS Code with a git repo.
+2. Verify `OpenGit Composer` icon appears in Activity Bar.
+3. Open the view and verify staged files list renders.
+4. Confirm both actions are visible:
+   - `Auto-Compose Commits`
+   - `Open In Full Panel`
 
-1. **The extension should automatically appear in the sidebar** (Activity Bar on the left)
-2. Look for the OpenGit Composer icon in the activity bar (below Explorer, Search, etc.)
-3. Click the OpenGit Composer icon to open the panel
+### 4.2 Compose Success Path
 
-> **Note:** If the sidebar icon doesn't appear, try:
->
-> - Restart VSCode completely (`Cmd+Q` then reopen)
-> - Check the Output panel for errors: `View > Output > Select "OpenGit Composer"` from dropdown
+1. Stage 2-5 changed files.
+2. Run compose.
+3. Verify draft list appears with confidence and file counts.
+4. Verify status bar shows draft count and no error.
+5. Edit one draft message and save.
 
-### Step 3: Test Basic Functionality
+### 4.3 Commit Safety (Snapshot Drift)
 
-1. **Open a Git repository** with some staged changes (`git add .`)
-2. Click the OpenGit Composer icon in the sidebar
-3. Verify the panel shows your staged files
-4. Click "Auto Compose" to generate commit suggestions
-5. Review and modify suggested commits
-6. Click "Commit" to execute
+1. Compose drafts from staged files.
+2. Before committing, stage/unstage an additional file in source control.
+3. Attempt `Commit This Draft` or `Commit All`.
+4. Expected:
+   - commit blocked,
+   - error shown with refresh action,
+   - no commit created.
 
-### Step 4: Test AI Providers
+### 4.4 Provider Preflight and Error UX
 
-Test each configured AI provider:
+Test these cases:
 
-- Open Settings (`Cmd+,`)
-- Search for "OpenGit Composer"
-- Test with different providers:
-  - OpenAI
-  - Anthropic
-  - Gemini
-  - Kimi
-  - Ollama (local)
+1. Cloud provider with no key configured.
+   - Expected: compose blocked with actionable key error.
+2. Ollama with invalid host.
+   - Expected: compose blocked with connection error and refresh guidance.
+3. Invalid cloud key (if available).
+   - Expected: mapped auth/permission style error.
 
-### Step 5: Test Commands
+### 4.5 Fallback Visibility
 
-Test the command palette commands:
+1. Force AI failure (invalid key or unreachable endpoint).
+2. Compose should fallback to heuristics.
+3. Verify fallback indicator is visible in:
+   - compose workspace,
+   - status bar.
 
-1. `Cmd+Shift+P` → "Commit Composer: Auto Compose"
-2. Verify it opens/focuses the full composer panel and starts composition
+### 4.6 Privacy Controls
 
-## Common Issues & Fixes
+Configure:
+- `commitComposer.excludePatterns`
+- `commitComposer.redactPatterns`
 
-### Sidebar Icon Not Appearing
+Then verify:
+1. Excluded files are not used in compose.
+2. Redacted tokens are masked before provider request.
+3. Privacy stats appear in compose/status surfaces.
 
-**Symptoms:** Extension installs but no icon in activity bar
+### 4.7 Sanitized Log Export
 
-**Solutions:**
+1. Trigger a compose with normal logs.
+2. Run command `Commit Composer: Copy Sanitized Logs` or use status bar action.
+3. Paste clipboard into a temp file and verify:
+   - keys are redacted,
+   - raw diff content is redacted/truncated.
 
-1. Rebuild and reinstall: `pnpm run package:vsix` then reinstall the generated VSIX.
-2. Check activation: Open DevTools (`Cmd+Opt+I`) → Console → Search for errors
-3. Verify package.json has activation event: `"onView:commitComposer.sidebarView"`
+## 5. Performance Scenarios
 
-### Extension Not Activating
+### 5.1 Large Diff Viewer
 
-**Symptoms:** Panel is empty or shows nothing
+1. Stage a large file diff (1k+ lines).
+2. Open diff viewer.
+3. Expected:
+   - initial partial render,
+   - `Show More` button available,
+   - UI remains responsive.
 
-**Solutions:**
+### 5.2 Large Staged File Count
 
-1. Check Output > OpenGit Composer for logs
-2. Ensure you have a Git repository open
-3. Run `git status` to confirm you have staged changes
+1. Stage 300+ files.
+2. Open staged file list.
+3. Expected:
+   - list loads quickly,
+   - partial list shown with `Show All` action.
 
-### Webview Not Loading
+## 6. Command Palette Checks
 
-**Symptoms:** Sidebar opens but shows blank/empty
+Verify these commands:
 
-**Solutions:**
+1. `Commit Composer: Auto Compose`
+   - opens focused compose flow.
+2. `Commit Composer: Show Debug Logs`
+   - opens output channel.
+3. `Commit Composer: Copy Sanitized Logs`
+   - copies sanitized logs to clipboard.
 
-1. Run `pnpm run compile` to build webview
-2. Check `dist/webview.js` exists
-3. Reload VSCode window: `Cmd+Shift+P` → "Reload Window"
+## 7. Troubleshooting
 
-## Running Unit Tests
+### Icon not visible
 
-```bash
-# Run all tests
-pnpm run test
+1. Reload VS Code window.
+2. Check `package.json` activation events.
+3. Inspect output channel `OpenGit Composer`.
 
-# Run specific test file
-pnpm run test -- --grep "commitSplitter"
+### Blank or broken webview
 
-# Run integration tests
-pnpm run test:integration
-```
+1. Rebuild bundles with `pnpm run compile`.
+2. Verify `dist/webview.js` exists.
+3. Reload extension host or VS Code window.
 
-## Test Scenarios
+### Compose fails unexpectedly
 
-### Scenario 1: Single File Commit
+1. Confirm staged changes exist.
+2. Verify provider key/host.
+3. Copy sanitized logs and inspect mapped error code/message.
 
-1. Create a new file `test.js`
-2. `git add test.js`
-3. Open OpenGit Composer sidebar
-4. Click Auto Compose
-5. Verify single commit suggestion
-6. Commit and verify in `git log`
+## 8. Regression Matrix Template
 
-### Scenario 2: Multiple Files - Split Commits
+Use this table per release candidate:
 
-1. Modify 5+ files across different features
-2. `git add .`
-3. Open OpenGit Composer
-4. Click Auto Compose
-5. Verify multiple commit suggestions (should split by feature)
-6. Commit all and verify each in log
-
-### Scenario 3: Conventional Commit Format
-
-1. Configure: Settings → commitComposer.commitFormat = "conventional"
-2. Stage changes
-3. Auto Compose
-4. Verify format: `type(scope): description`
-
-### Scenario 4: Custom AI Provider
-
-1. Add API key: Settings → commitComposer.apiKey
-2. Select provider: Settings → commitComposer.aiProvider
-3. Test Auto Compose
-4. Verify custom model works (if specified)
+| Scenario | macOS | Windows | Linux | Notes |
+|---|---:|---:|---:|---|
+| Activation + sidebar UI | ⬜ | ⬜ | ⬜ | |
+| Compose (AI) | ⬜ | ⬜ | ⬜ | |
+| Compose (fallback) | ⬜ | ⬜ | ⬜ | |
+| Snapshot stale blocking | ⬜ | ⬜ | ⬜ | |
+| Commit single | ⬜ | ⬜ | ⬜ | |
+| Commit all | ⬜ | ⬜ | ⬜ | |
+| Privacy exclude/redact | ⬜ | ⬜ | ⬜ | |
+| Sanitized log copy | ⬜ | ⬜ | ⬜ | |
+| Large diff responsiveness | ⬜ | ⬜ | ⬜ | |

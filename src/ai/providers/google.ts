@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse } from '../aiProvider';
+import { AIAnalyzeOptions, AIProvider, AIProviderConfig, AIResponse, GenerateMessageOptions } from '../aiProvider';
 import { FileChange } from '../../types/git';
 import { PromptBuilder } from '../promptBuilder';
 import { ResponseParser } from '../responseParser';
 import { Logger } from '../../utils/logger';
 import {
     buildProviderError,
+    extractGeminiContent,
     extractModelIds,
     modelIdsMatch,
     normalizeModelId,
@@ -27,7 +28,7 @@ export class GoogleProvider extends AIProvider {
         Logger.debug('GoogleProvider: Built prompt', { promptLength: prompt.length });
 
         const response = await this.makeRequest(prompt);
-        const content = response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const content = extractGeminiContent(response, 'Google');
         const parsed = ResponseParser.parseGroupingResponse(content, changes);
         if (!parsed.parserMeta?.usedFallback || !content.trim()) {
             return parsed;
@@ -36,18 +37,18 @@ export class GoogleProvider extends AIProvider {
         Logger.warn('GoogleProvider: Initial parse used fallback, attempting repair pass');
         const repairPrompt = PromptBuilder.buildRepairPrompt(content, changes, options);
         const repairResponse = await this.makeRequest(repairPrompt);
-        const repairContent = repairResponse?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const repairContent = extractGeminiContent(repairResponse, 'Google');
         const repaired = ResponseParser.parseGroupingResponse(repairContent, changes);
         return repaired.parserMeta?.usedFallback ? parsed : repaired;
     }
 
-    async generateCommitMessage(files: FileChange[]): Promise<string> {
+    async generateCommitMessage(files: FileChange[], options?: GenerateMessageOptions): Promise<string> {
         Logger.info('GoogleProvider: Generating commit message', { fileCount: files.length });
         const prompt = PromptBuilder.buildMessagePrompt(files);
         const response = await this.makeRequest(prompt);
 
         return ResponseParser.parseMessageResponse(
-            response.candidates[0].content.parts[0].text
+            extractGeminiContent(response, 'Google')
         );
     }
 

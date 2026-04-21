@@ -16,9 +16,17 @@ export function mapErrorToMessage(
     const err = error as ComposeMessageError;
     const message = error instanceof Error ? error.message : String(error);
     const code = err?.code || 'UNKNOWN_ERROR';
+    // Non-provider errors don't need diagnostics (no provider context relevant)
+    const nonProviderErrors: ComposerErrorCode[] = [
+        'STAGED_SNAPSHOT_STALE',
+        'ONLY_EXCLUDED_FILES',
+        'NO_STAGED_CHANGES',
+        'NO_GIT_REPOSITORY',
+    ];
+    const isProviderError = !nonProviderErrors.includes(code as ComposerErrorCode);
     const buildPayload = (payload: Omit<ComposerErrorPayload, 'diagnostics'>): ComposerErrorPayload => ({
         ...payload,
-        diagnostics: buildDiagnostics(error, payload.code, payload.message, configLoader),
+        diagnostics: isProviderError ? buildDiagnostics(error, payload.code, payload.message, configLoader) : undefined,
     });
 
     if (err?.action) {

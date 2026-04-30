@@ -158,6 +158,7 @@ suite('Orchestrator Test Suite', () => {
             }),
             generateCommitMessage: async () => 'feat(core): feat(core): regroup files',
             validateApiKey: async () => true,
+            consumeRequestMeta: () => undefined,
         });
 
         try {
@@ -175,5 +176,102 @@ suite('Orchestrator Test Suite', () => {
         } finally {
             (AIProviderFactory as any).create = createOriginal;
         }
+    });
+
+    test('should strip prompt-style angle brackets from AI-generated commit messages', async () => {
+        const multiFileGit = {
+            getStagedChanges: async () => ([
+                {
+                    path: 'src/core/a.ts',
+                    changeType: ChangeType.Modified,
+                    diff: '--- a/src/core/a.ts\n+++ b/src/core/a.ts\n@@ -1,1 +1,1 @@\n-old\n+new',
+                    additions: 1,
+                    deletions: 1,
+                },
+                {
+                    path: 'src/core/b.ts',
+                    changeType: ChangeType.Modified,
+                    diff: '--- a/src/core/b.ts\n+++ b/src/core/b.ts\n@@ -1,1 +1,1 @@\n-old\n+new',
+                    additions: 1,
+                    deletions: 1,
+                },
+            ]),
+            getRepoContext: async () => ({
+                repoName: 'mock',
+                branch: 'main',
+                recentCommits: ['feat: baseline'],
+                projectType: 'node',
+            }),
+            getUnstagedChanges: async () => [],
+            stageFiles: async () => { },
+            createCommit: async () => { },
+            unstageAll: async () => { },
+        } as any;
+
+        const createOriginal = AIProviderFactory.create;
+        (AIProviderFactory as any).create = () => ({
+            analyzeChanges: async () => ({
+                groups: [{
+                    id: 'g1',
+                    message: 'feat(core): <refactor> improve compose path',
+                    files: await multiFileGit.getStagedChanges(),
+                    confidence: 90,
+                }],
+                summary: 'mock',
+                reasoning: 'mock',
+            }),
+            generateCommitMessage: async () => '<refactor(core): <improve compose path>>',
+            validateApiKey: async () => true,
+            consumeRequestMeta: () => undefined,
+        });
+
+        try {
+            const orchestrator = new Orchestrator(multiFileGit);
+            const result = await orchestrator.compose({
+                provider: 'openai',
+                apiKey: 'test',
+                model: 'mock',
+            });
+            const subjects = result.drafts.map(draft => draft.message.split('\n')[0]);
+            assert.ok(
+                subjects.every(subject => !subject.includes('<') && !subject.includes('>')),
+                'Prompt-style angle brackets should be stripped from commit messages'
+            );
+        } finally {
+            (AIProviderFactory as any).create = createOriginal;
+        }
+    });
+
+    test('should generate descriptive heuristic subjects for broad fallback clusters', () => {
+        const mockGit = new StubGitService() as any;
+        const orchestrator = new Orchestrator(mockGit);
+        const message = (orchestrator as any).buildHeuristicCommitMessage(
+            'feat',
+            'apps',
+            [
+                { path: 'src/ai/providers/lmstudio.ts' },
+                { path: 'src/webview/ui/components/AIControls.tsx' },
+                { path: 'src/core/orchestrator.ts' },
+                { path: 'src/test/suite/orchestrator.test.ts' },
+            ],
+            72
+        ) as string;
+
+        assert.ok(message.startsWith('feat(apps): add'), 'Fallback subject should be specific');
+        assert.ok(!message.includes('update related files'), 'Generic fallback text should not be used');
+        assert.ok(
+            /AI providers|webview UI|core logic|tests/.test(message),
+            'Fallback subject should mention the affected areas'
+        );
+    });
+
+    test('should cap normalized scopes to two words', () => {
+        const mockGit = new StubGitService() as any;
+        const orchestrator = new Orchestrator(mockGit);
+        const message = (orchestrator as any).normalizeCommitMessage(
+            'feat(shared-ui-components): add shared component library'
+        ) as string;
+
+        assert.strictEqual(message.startsWith('feat(ui-components):'), true);
     });
 });

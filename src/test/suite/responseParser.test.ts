@@ -115,6 +115,37 @@ suite('ResponseParser Test Suite', () => {
         );
     });
 
+    test('should strip prompt-style angle brackets from parsed message subjects', () => {
+        const result = ResponseParser.parseMessageResponse(
+            '<refactor(parser): <improve fallback parsing>>\n\nKeep the parser output clean.'
+        );
+
+        assert.strictEqual(
+            result,
+            'refactor(parser): improve fallback parsing\n\nKeep the parser output clean.'
+        );
+    });
+
+    test('should cap parsed scopes to two words and remove generic prefixes', () => {
+        const changes = [change('src/ui/Button.tsx')];
+        const response = JSON.stringify({
+            groups: [
+                {
+                    files: ['src/ui/Button.tsx'],
+                    message: 'feat(shared-ui-components): add shared component library',
+                    confidence: 90,
+                },
+            ],
+        });
+
+        const parsed = ResponseParser.parseGroupingResponse(response, changes);
+
+        assert.strictEqual(
+            parsed.groups[0].message.startsWith('feat(ui-components):'),
+            true
+        );
+    });
+
     test('should mark parser fallback metadata when response is unparseable', () => {
         const changes = [change('src/d.ts'), change('src/e.ts')];
         const parsed = ResponseParser.parseGroupingResponse('totally-not-json', changes);

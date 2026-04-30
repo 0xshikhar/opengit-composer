@@ -370,7 +370,7 @@ export class Orchestrator {
             const message = this.buildHeuristicCommitMessage(
                 cluster.suggestedType,
                 cluster.suggestedScope,
-                cluster.files.map(file => file.path),
+                cluster.files,
                 config.maxSubjectLength
             );
 
@@ -396,29 +396,146 @@ export class Orchestrator {
     private buildHeuristicCommitMessage(
         type: string,
         scope: string | undefined,
-        filePaths: string[],
+        files: FileChange[],
         maxSubjectLength: number
     ): string {
         const scopedType = scope ? `${type}(${scope})` : type;
-        const shortFileNames = filePaths
-            .map(path => path.split('/').pop() || path)
-            .slice(0, 3)
-            .join(', ');
-        const overflowCount = Math.max(0, filePaths.length - 3);
-        const suffix = overflowCount > 0 ? ` +${overflowCount} more` : '';
-        let subject = `${scopedType}: update ${shortFileNames}${suffix}`;
+        const filePaths = files.map(file => file.path);
+        const focus = this.buildHeuristicFocus(files);
+        const verb = this.getHeuristicVerb(type);
+        const focusText = focus.length > 0
+            ? this.formatHeuristicFocus(focus, maxSubjectLength - scopedType.length - verb.length - 4)
+            : this.formatFileSummary(filePaths, maxSubjectLength - scopedType.length - verb.length - 4);
+        let subject = `${scopedType}: ${verb} ${focusText}`.replace(/\s+/g, ' ').trim();
 
-        if (subject.length <= maxSubjectLength) {
-            return subject;
-        }
-
-        subject = `${scopedType}: update related files`;
         if (subject.length > maxSubjectLength) {
             subject = subject.slice(0, Math.max(0, maxSubjectLength - 3)).trimEnd() + '...';
         }
 
         const body = ['Files:', ...filePaths.map(filePath => `- ${filePath}`)].join('\n');
         return `${subject}\n\n${body}`;
+    }
+
+    private buildHeuristicFocus(files: FileChange[]): string[] {
+        const weights = new Map<string, number>();
+        const add = (label: string, weight = 1) => {
+            weights.set(label, (weights.get(label) || 0) + weight);
+        };
+
+        for (const file of files) {
+            const normalized = file.path.replace(/\\/g, '/').toLowerCase();
+
+            if (normalized.includes('/src/ai/providers/')) add('AI providers', 4);
+            if (normalized.includes('/src/ai/')) add('AI flow', 3);
+            if (normalized.includes('/src/webview/')) add('webview UI', 4);
+            if (normalized.includes('/src/core/')) add('core logic', 3);
+            if (normalized.includes('/src/features/')) add('feature flow', 3);
+            if (normalized.includes('/src/test/') || /\.test\./.test(normalized) || /\.spec\./.test(normalized)) add('tests', 4);
+            if (normalized.includes('/docs/') || normalized.endsWith('.md')) add('docs', 2);
+            if (/package\.json|tsconfig|eslint|prettier|vite|webpack|rollup/.test(normalized)) add('config', 2);
+            if (normalized.includes('/src/utils/')) add('utilities', 2);
+            if (normalized.includes('/src/types/')) add('types', 2);
+
+            const providerHints = [
+                ['lmstudio', 'LM Studio'],
+                ['gemini', 'Gemini'],
+                ['openai', 'OpenAI'],
+                ['ollama', 'Ollama'],
+                ['groq', 'Groq'],
+                ['anthropic', 'Anthropic'],
+                ['kimi', 'Kimi'],
+            ] as const;
+
+            for (const [needle, label] of providerHints) {
+                if (normalized.includes(needle)) {
+                    add(label, 3);
+                }
+            }
+        }
+
+        return [...weights.entries()]
+            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+            .map(([label]) => label)
+            .slice(0, 3);
+    }
+
+    private formatHeuristicFocus(focus: string[], maxLength: number): string {
+        const available = Math.max(16, maxLength);
+        const joined = this.joinFocusList(focus);
+        if (joined.length <= available) {
+            return joined;
+        }
+
+        if (focus.length <= 1) {
+            return this.truncateFocus(joined, available);
+        }
+
+        const reduced = this.joinFocusList(focus.slice(0, 2));
+        if (reduced.length <= available) {
+            return reduced;
+        }
+
+        return this.truncateFocus(reduced, available);
+    }
+
+    private formatFileSummary(filePaths: string[], maxLength: number): string {
+        const names = filePaths
+            .slice(0, 3)
+            .map(path => path.split('/').pop() || path)
+            .filter(Boolean);
+        if (names.length === 0) {
+            return 'related changes';
+        }
+
+        const summary = this.joinFocusList(names);
+        if (summary.length <= Math.max(16, maxLength)) {
+            return summary;
+        }
+
+        return this.truncateFocus(summary, Math.max(16, maxLength));
+    }
+
+    private joinFocusList(items: string[]): string {
+        if (items.length <= 1) {
+            return items[0] || 'related changes';
+        }
+        if (items.length === 2) {
+            return `${items[0]} and ${items[1]}`;
+        }
+        return `${items[0]}, ${items[1]}, and ${items[2]}`;
+    }
+
+    private truncateFocus(value: string, maxLength: number): string {
+        if (value.length <= maxLength) {
+            return value;
+        }
+        if (maxLength <= 3) {
+            return value.slice(0, maxLength);
+        }
+        return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+    }
+
+    private getHeuristicVerb(type: string): string {
+        switch (type) {
+            case 'feat':
+                return 'add';
+            case 'fix':
+                return 'fix';
+            case 'refactor':
+                return 'refactor';
+            case 'docs':
+                return 'update docs for';
+            case 'test':
+                return 'update tests for';
+            case 'perf':
+                return 'optimize';
+            case 'build':
+            case 'ci':
+            case 'style':
+            case 'chore':
+            default:
+                return 'update';
+        }
     }
 
     private async enforceMultiDraftRequirement(
@@ -484,7 +601,7 @@ export class Orchestrator {
         let message = this.buildHeuristicCommitMessage(
             'chore',
             groupName !== 'root' ? groupName : undefined,
-            files.map(file => file.path),
+            files,
             maxSubjectLength
         );
 
@@ -515,9 +632,10 @@ export class Orchestrator {
     }
 
     private normalizeConventionalSubject(subject: string): string {
-        const parsedPrefix = this.parseConventionalPrefix(subject);
+        const cleanedSubject = this.stripPromptStyleWrappers(subject);
+        const parsedPrefix = this.parseConventionalPrefix(cleanedSubject);
         if (!parsedPrefix) {
-            return subject;
+            return cleanedSubject;
         }
 
         let remainder = parsedPrefix.remainder.trimStart();
@@ -541,21 +659,66 @@ export class Orchestrator {
             remainder = nestedPrefix.remainder.trimStart();
         }
 
-        return remainder ? `${parsedPrefix.prefix} ${remainder}` : parsedPrefix.prefix;
+        const cleanedRemainder = this.stripPromptStyleWrappers(remainder);
+        const scope = parsedPrefix.scope ? `(${parsedPrefix.scope})` : '';
+        const prefix = `${parsedPrefix.type}${scope}:`;
+        return cleanedRemainder ? `${prefix} ${cleanedRemainder}` : prefix;
     }
 
     private parseConventionalPrefix(subject: string): { type: string; scope?: string; prefix: string; remainder: string } | null {
-        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?!?:\s*/i);
+        const match = subject.match(/^<?([a-z]+)(?:\(([^)]+)\))?(!)?>?:\s*/i);
         if (!match) {
             return null;
         }
 
         return {
             type: match[1].toLowerCase(),
-            scope: match[2]?.toLowerCase(),
+            scope: this.normalizeCommitScope(match[2]),
             prefix: match[0].trimEnd(),
             remainder: subject.slice(match[0].length),
         };
+    }
+
+    private normalizeCommitScope(value?: string): string | undefined {
+        if (!value) return undefined;
+        const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9\-_/]/g, '');
+        if (!cleaned) return undefined;
+
+        const parts = cleaned
+            .split(/[-_/]+/)
+            .map(part => part.trim())
+            .filter(Boolean);
+        if (parts.length === 0) return undefined;
+
+        const genericPrefixes = new Set([
+            'shared',
+            'common',
+            'core',
+            'base',
+            'app',
+            'apps',
+            'feature',
+            'features',
+            'module',
+            'modules',
+            'component',
+            'components',
+        ]);
+
+        while (parts.length > 2 && genericPrefixes.has(parts[0])) {
+            parts.shift();
+        }
+
+        return parts.slice(0, 2).join('-') || undefined;
+    }
+
+    private stripPromptStyleWrappers(value: string): string {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return trimmed;
+        }
+
+        return trimmed.replace(/[<>]/g, '').replace(/\s+/g, ' ').trim();
     }
 
     private buildForcedDraftPayload(

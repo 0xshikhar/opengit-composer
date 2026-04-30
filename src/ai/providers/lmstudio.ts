@@ -114,7 +114,7 @@ export class LMStudioProvider extends AIProvider {
         try {
             Logger.info('LMStudioProvider: Fetching available models');
             const response = await axios.get(`${this.baseUrl}/models`, { timeout: 10000 });
-            return extractModelIds(response.data);
+            return this.filterChatModels(extractModelIds(response.data));
         } catch (error) {
             Logger.error('LMStudioProvider: Failed to fetch models', error);
             return [];
@@ -192,7 +192,10 @@ export class LMStudioProvider extends AIProvider {
                 : message;
             const isResponseFormatError =
                 mode === 'json' &&
-                /response_format|json_object|JSON|schema|invalid/i.test(responseText);
+                (
+                    (axios.isAxiosError(error) && [400, 404, 422].includes(error.response?.status ?? 0)) ||
+                    /response_format|json_object|JSON|schema|invalid/i.test(responseText)
+                );
 
             if (isResponseFormatError) {
                 Logger.warn('LMStudioProvider: Retrying without response_format after request failure', {
@@ -234,7 +237,7 @@ export class LMStudioProvider extends AIProvider {
             return active;
         }
 
-        throw new Error('No LM Studio model is currently loaded. Start a model in LM Studio or select one in the composer.');
+        throw new Error('No chat-capable LM Studio model is currently loaded. Start a chat model in LM Studio or select one in the composer.');
     }
 
     private normalizeBaseUrl(baseUrl: string): string {
@@ -243,5 +246,9 @@ export class LMStudioProvider extends AIProvider {
             return trimmed;
         }
         return `${trimmed}/v1`;
+    }
+
+    private filterChatModels(models: string[]): string[] {
+        return models.filter(model => !/(embed|embedding|rerank)/i.test(model));
     }
 }

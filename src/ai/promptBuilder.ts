@@ -47,10 +47,10 @@ Required JSON schema:
   "summary": "1-3 sentence overview of the overall change set",
   "reasoning": "why these groups were chosen and tradeoffs",
   "groups": [
-    {
+      {
       "files": ["exact/path/from/input.ts"],
       "type": "feat|fix|refactor|docs|style|test|chore|perf|ci|build",
-      "scope": "optional-scope",
+      "scope": "optional concise scope, max 2 words, prefer hyphenated noun phrase",
       "subject": "imperative summary without trailing period",
       "body": "optional multiline body",
       "confidence": 0,
@@ -94,13 +94,14 @@ Hard rules:
 ${contextBlock}
 ${JSON.stringify(filesInfo, null, 2)}
 
-Format: <type>(<scope>): <subject>
+Format: type(scope): subject
+Example: refactor(parser): improve fallback parsing
 
 <body>
 
 Where:
 - type: feat, fix, refactor, docs, style, test, chore
-- scope: optional, affected module/component
+- scope: optional, affected module/component, max 2 words
 - subject: imperative mood, lowercase, no period
 - body: optional, explain what and why (not how)
 

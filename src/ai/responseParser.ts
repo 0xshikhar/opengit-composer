@@ -442,7 +442,35 @@ export class ResponseParser {
     private static normalizeScope(value?: string): string | undefined {
         if (!value) return undefined;
         const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9\-_/]/g, '');
-        return cleaned || undefined;
+        if (!cleaned) return undefined;
+
+        const parts = cleaned
+            .split(/[-_/]+/)
+            .map(part => part.trim())
+            .filter(Boolean);
+
+        if (parts.length === 0) return undefined;
+
+        const genericPrefixes = new Set([
+            'shared',
+            'common',
+            'core',
+            'base',
+            'app',
+            'apps',
+            'feature',
+            'features',
+            'module',
+            'modules',
+            'component',
+            'components',
+        ]);
+
+        while (parts.length > 2 && genericPrefixes.has(parts[0])) {
+            parts.shift();
+        }
+
+        return parts.slice(0, 2).join('-') || undefined;
     }
 
     private static normalizeSubject(value: string): string {
@@ -452,9 +480,10 @@ export class ResponseParser {
     }
 
     private static normalizeCommitSubjectLine(subjectLine: string): string {
-        const parsedPrefix = this.parseConventionalPrefix(subjectLine);
+        const cleanedSubjectLine = this.stripPromptStyleWrappers(subjectLine);
+        const parsedPrefix = this.parseConventionalPrefix(cleanedSubjectLine);
         if (!parsedPrefix) {
-            return subjectLine.replace(/\s+/g, ' ').trim();
+            return cleanedSubjectLine.replace(/\s+/g, ' ').trim();
         }
 
         let remainder = parsedPrefix.remainder.trimStart();
@@ -479,24 +508,34 @@ export class ResponseParser {
             remainder = nestedPrefix.remainder.trimStart();
         }
 
-        const scope = parsedPrefix.scope ? `(${parsedPrefix.scope})` : '';
+        const scope = parsedPrefix.scope ? `(${this.normalizeScope(parsedPrefix.scope) || parsedPrefix.scope})` : '';
         const prefix = `${parsedPrefix.type}${scope}${breaking ? '!' : ''}:`;
-        return remainder ? `${prefix} ${remainder}` : prefix;
+        const cleanedRemainder = this.stripPromptStyleWrappers(remainder);
+        return cleanedRemainder ? `${prefix} ${cleanedRemainder}` : prefix;
     }
 
     private static parseConventionalPrefix(subject: string): { type: string; scope?: string; breaking: boolean; prefix: string; remainder: string } | null {
-        const match = subject.match(/^([a-z]+)(?:\(([^)]+)\))?(!)?:\s*/i);
+        const match = subject.match(/^<?([a-z]+)(?:\(([^)]+)\))?(!)?>?:\s*/i);
         if (!match) {
             return null;
         }
 
         return {
             type: match[1].toLowerCase(),
-            scope: match[2]?.toLowerCase(),
+            scope: this.normalizeScope(match[2]),
             breaking: Boolean(match[3]),
             prefix: match[0].trimEnd(),
             remainder: subject.slice(match[0].length),
         };
+    }
+
+    private static stripPromptStyleWrappers(value: string): string {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return trimmed;
+        }
+
+        return trimmed.replace(/[<>]/g, '').replace(/\s+/g, ' ').trim();
     }
 
     private static normalizeConfidence(value: unknown): number {

@@ -144,7 +144,7 @@ export function extractModelIds(payload: unknown): string[] {
             : [];
 
     return items
-        .map((item: any) => item?.id || item?.name)
+        .map((item: any) => item?.id || item?.name || item?.key || item?.model || item?.loaded_instances?.[0]?.id)
         .filter(Boolean)
         .map((model: string) => normalizeModelId(model));
 }

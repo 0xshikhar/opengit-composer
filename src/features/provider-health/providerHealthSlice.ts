@@ -99,9 +99,10 @@ export async function loadLocalModels(provider: string, baseUrl: string, webview
         const localProvider = provider === 'lmstudio'
             ? new LMStudioProvider({ apiKey: '', model: '', baseUrl })
             : new OllamaProvider({ apiKey: '', model: '', baseUrl });
-        const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
-        const healthPath = provider === 'lmstudio' ? '/models' : '/api/tags';
-        await axios.get(`${normalizedBaseUrl}${healthPath}`, { timeout: 5000 });
+        const reachable = await localProvider.validateApiKey();
+        if (!reachable) {
+            throw new Error(`Unable to reach ${provider === 'lmstudio' ? 'LM Studio' : 'Ollama'} at ${baseUrl}. Check the host and whether the local server is running.`);
+        }
         const models = await localProvider.getAvailableModels();
         await webview.postMessage({ command: 'ollamaModelsLoaded', models });
     } catch (error) {

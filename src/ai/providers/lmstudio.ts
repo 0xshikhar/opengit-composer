@@ -241,7 +241,13 @@ export class LMStudioProvider extends AIProvider {
     }
 
     private normalizeBaseUrl(baseUrl: string): string {
-        const trimmed = baseUrl.replace(/\/$/, '');
+        let trimmed = baseUrl.trim().replace(/\/$/, '');
+        if (trimmed.endsWith('/api/v1')) {
+            return trimmed.replace(/\/api\/v1$/, '/v1');
+        }
+        if (trimmed.endsWith('/api')) {
+            return trimmed.replace(/\/api$/, '/v1');
+        }
         if (/\/v1$/.test(trimmed)) {
             return trimmed;
         }

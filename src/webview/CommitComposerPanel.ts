@@ -100,19 +100,26 @@ export class CommitComposerPanel {
         // Use a nonce to whitelist which scripts can be run
         const nonce = getNonce();
 
+        const logoUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'activity-bar.svg')
+        );
+
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this._panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this._panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${this._panel.webview.cspSource} data:; img-src ${this._panel.webview.cspSource} data: https:;">
                 <title>Commit Composer</title>
-                <!-- <link href="${styleMainUri}" rel="stylesheet"> --> 
-                <!-- Style loader usually injects styles, but if we used MiniCssExtractPlugin we'd need a link. 
-                     Since we used style-loader, no link needed for main.css if it's imported in js. -->
             </head>
             <body>
                 <div id="root"></div>
+                <script nonce="${nonce}">
+                    window.__OPENGIT_BOOTSTRAP__ = {
+                        mode: 'panel',
+                        logoUri: '${logoUri.toString()}'
+                    };
+                </script>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;

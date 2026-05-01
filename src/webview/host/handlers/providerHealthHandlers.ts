@@ -1,6 +1,7 @@
 import { ComposeProviderConfig } from '../../../core/orchestrator';
 import {
     loadKeys,
+    loadLocalModels,
     loadOllamaModels,
     removeKey,
     resetKeys,
@@ -56,8 +57,9 @@ export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps): W
         ),
         testProviderConnection: async (message, webview) => testProviderConnection(deps, resolveProviderConfig(message), webview),
         testConnection: async (message, webview) => testProviderConnection(deps, resolveProviderConfig(message), webview),
-        loadOllamaModels: async (message, webview) => loadOllamaModels(
-            String(message.baseUrl || 'http://localhost:11434'),
+        loadOllamaModels: async (message, webview) => loadLocalModels(
+            String(message.provider || 'ollama'),
+            String(message.baseUrl || (message.provider === 'lmstudio' ? 'http://localhost:1234/v1' : 'http://localhost:11434')),
             webview
         ),
         saveProviderPreference: async (message, webview) => saveProviderPreference(

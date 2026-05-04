@@ -5,7 +5,7 @@
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "license": "MIT",
   "icon": "icon.png",
   "homepage": "https://github.com/0xshikhar/opengit-composer",
@@ -63,7 +63,7 @@
         {
           "id": "commitComposerContainer",
           "title": "OpenGit Composer",
-          "icon": "icon.png"
+          "icon": "media/activity-bar.svg"
         }
       ]
     },

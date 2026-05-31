@@ -124,6 +124,50 @@ suite('Webview Command Router Test Suite', () => {
         assert.deepStrictEqual(calls, ['workspace:refresh', 'workspace:openComposerPanel', 'workspace:openWorkspace']);
     });
 
+    test('routes commands to the gitActions registry', async () => {
+        const calls: string[] = [];
+        const router = createWebviewCommandRouter(
+            {
+                getOrchestrator: () => ({} as any),
+                getConfigLoader: () => ({} as any),
+                getCommitExecutor: () => ({} as any),
+                openComposerPanel: async () => {},
+                openWorkspace: async () => {},
+                refreshVisibleViews: async () => {},
+            },
+            {
+                registries: {
+                    compose: {},
+                    commit: {},
+                    providerHealth: {},
+                    workspace: {},
+                    gitActions: {
+                        openDiff: async () => { calls.push('gitActions:openDiff'); },
+                        openFile: async () => { calls.push('gitActions:openFile'); },
+                        stageFiles: async () => { calls.push('gitActions:stageFiles'); },
+                        unstageFiles: async () => { calls.push('gitActions:unstageFiles'); },
+                        stageAll: async () => { calls.push('gitActions:stageAll'); },
+                        unstageAll: async () => { calls.push('gitActions:unstageAll'); },
+                    },
+                } satisfies Partial<WebviewCommandRegistrySet>,
+            }
+        );
+
+        await router({ command: 'openDiff' } as any, {} as any);
+        await router({ command: 'stageFiles' } as any, {} as any);
+        await router({ command: 'unstageFiles' } as any, {} as any);
+        await router({ command: 'stageAll' } as any, {} as any);
+        await router({ command: 'unstageAll' } as any, {} as any);
+
+        assert.deepStrictEqual(calls, [
+            'gitActions:openDiff',
+            'gitActions:stageFiles',
+            'gitActions:unstageFiles',
+            'gitActions:stageAll',
+            'gitActions:unstageAll',
+        ]);
+    });
+
     test('ignores unknown commands', async () => {
         const calls: string[] = [];
         const router = createWebviewCommandRouter(

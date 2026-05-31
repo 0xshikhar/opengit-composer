@@ -19,7 +19,13 @@ export type WebviewToHostCommand =
     | 'openWorkspace'
     | 'openKeyInput'
     | 'generate'
-    | 'commit';
+    | 'commit'
+    | 'openDiff'
+    | 'openFile'
+    | 'stageFiles'
+    | 'unstageFiles'
+    | 'stageAll'
+    | 'unstageAll';
 
 export interface ComposerWarningPayload {
     code: 'STAGED_SNAPSHOT_STALE';
@@ -128,6 +134,12 @@ const WEBVIEW_COMMANDS = new Set<WebviewToHostCommand>([
     'openKeyInput',
     'generate',
     'commit',
+    'openDiff',
+    'openFile',
+    'stageFiles',
+    'unstageFiles',
+    'stageAll',
+    'unstageAll',
 ]);
 
 const HOST_COMMANDS = new Set<HostToWebviewCommand>([

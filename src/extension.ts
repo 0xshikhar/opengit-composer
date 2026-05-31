@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CommitComposerProvider } from './webview/CommitComposerProvider';
 import { KeyManager } from './core/keyManager';
+import { GitContentProvider, OPENGIT_DIFF_SCHEME } from './core/git/gitContentProvider';
 import { Logger } from './utils/logger';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -9,6 +10,18 @@ export function activate(context: vscode.ExtensionContext) {
 
     const keyManager = new KeyManager(context);
     const provider = new CommitComposerProvider(context.extensionUri, keyManager);
+
+    const gitContentProvider = new GitContentProvider(() => {
+        try {
+            return provider.getGitService();
+        } catch {
+            return undefined;
+        }
+    });
+
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider(OPENGIT_DIFF_SCHEME, gitContentProvider)
+    );
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(CommitComposerProvider.viewType, provider)

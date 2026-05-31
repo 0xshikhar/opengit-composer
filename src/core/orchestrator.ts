@@ -834,4 +834,11 @@ export class Orchestrator {
     async getRepoContext(): Promise<RepoContext> {
         return this.gitService.getRepoContext();
     }
+
+    /**
+     * Get underlying GitService.
+     */
+    getGitService(): GitService {
+        return this.gitService;
+    }
 }

@@ -22,6 +22,10 @@ export class GitService {
         this.git = simpleGit(this.workspacePath);
     }
 
+    getWorkspacePath(): string {
+        return this.workspacePath;
+    }
+
     // --- Staged / Unstaged ---
 
     async getStagedChanges(): Promise<FileChange[]> {
@@ -71,6 +75,14 @@ export class GitService {
 
     async getStagedDiff(): Promise<string> {
         return this.git.diff(['--cached', '--patch', '--no-color']);
+    }
+
+    async showFile(refAndPath: string): Promise<string> {
+        try {
+            return await this.git.show([refAndPath]);
+        } catch {
+            return '';
+        }
     }
 
     // --- Stage / Unstage ---

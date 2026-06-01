@@ -1,79 +1,344 @@
 import React, { useMemo, useState } from 'react';
-import { useCommitStore } from '../store/commitStore';
+import {
+    ChevronDown,
+    ChevronRight,
+    ExternalLink,
+    FileCode,
+    Folder,
+    FolderOpen,
+    Minus,
+    Plus,
+} from 'lucide-react';
+import { useCommitStore, FileChange } from '../store/commitStore';
+import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
 
-type Group = {
+interface FileTreeNode {
     name: string;
-    files: ReturnType<typeof useCommitStore.getState>['stagedFiles'];
+    path: string;
+    isFolder: boolean;
+    file?: FileChange;
+    children: FileTreeNode[];
+    fileCount: number;
     additions: number;
     deletions: number;
-};
-
-function getTopFolder(filePath: string): string {
-    const normalized = filePath.replace(/\\/g, '/');
-    const [first] = normalized.split('/');
-    return first || 'root';
 }
 
-function groupByTopFolder(files: Group['files']): Group[] {
-    const map = new Map<string, Group>();
+function buildFileTree(files: FileChange[]): FileTreeNode[] {
+    const rootMap: Record<string, any> = {};
+
     for (const file of files) {
-        const name = getTopFolder(file.path);
-        const existing = map.get(name);
-        if (existing) {
-            existing.files.push(file);
-            existing.additions += file.additions;
-            existing.deletions += file.deletions;
-        } else {
-            map.set(name, { name, files: [file], additions: file.additions, deletions: file.deletions });
+        const segments = file.path.replace(/\\/g, '/').split('/').filter(Boolean);
+        let current = rootMap;
+
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const isLast = i === segments.length - 1;
+            const subPath = segments.slice(0, i + 1).join('/');
+
+            if (!current[segment]) {
+                current[segment] = {
+                    node: {
+                        name: segment,
+                        path: subPath,
+                        isFolder: !isLast,
+                        file: isLast ? file : undefined,
+                    },
+                    children: {},
+                };
+            }
+            current = current[segment].children;
         }
     }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    function convertChildren(obj: Record<string, any>): FileTreeNode[] {
+        const list: FileTreeNode[] = [];
+        const keys = Object.keys(obj);
+
+        for (const key of keys) {
+            const item = obj[key];
+            const children = convertChildren(item.children);
+
+            let fileCount = item.node.isFolder ? 0 : 1;
+            let additions = item.node.file ? item.node.file.additions : 0;
+            let deletions = item.node.file ? item.node.file.deletions : 0;
+
+            for (const child of children) {
+                fileCount += child.fileCount;
+                additions += child.additions;
+                deletions += child.deletions;
+            }
+
+            children.sort((a, b) => {
+                if (a.isFolder === b.isFolder) {
+                    return a.name.localeCompare(b.name);
+                }
+                return a.isFolder ? -1 : 1;
+            });
+
+            list.push({
+                name: item.node.name,
+                path: item.node.path,
+                isFolder: item.node.isFolder,
+                file: item.node.file,
+                children,
+                fileCount,
+                additions,
+                deletions,
+            });
+        }
+
+        list.sort((a, b) => {
+            if (a.isFolder === b.isFolder) {
+                return a.name.localeCompare(b.name);
+            }
+            return a.isFolder ? -1 : 1;
+        });
+
+        return list;
+    }
+
+    return convertChildren(rootMap);
+}
+
+function getAllFilesUnderNode(node: FileTreeNode): string[] {
+    if (!node.isFolder && node.file) {
+        return [node.file.path];
+    }
+    const paths: string[] = [];
+    for (const child of node.children) {
+        paths.push(...getAllFilesUnderNode(child));
+    }
+    return paths;
+}
+
+interface TreeItemProps {
+    node: FileTreeNode;
+    level: number;
+    isStaged: boolean;
+    selectedFilePath: string | null;
+    collapsedFolders: Record<string, boolean>;
+    onToggleFolder: (path: string) => void;
+    onOpenFile: (path: string, e: React.MouseEvent) => void;
+    onSelectFile: (file: FileChange, isStaged: boolean) => void;
+    onStage: (paths: string[], e: React.MouseEvent) => void;
+    onUnstage: (paths: string[], e: React.MouseEvent) => void;
+}
+
+function FileTreeNodeItem({
+    node,
+    level,
+    isStaged,
+    selectedFilePath,
+    collapsedFolders,
+    onToggleFolder,
+    onOpenFile,
+    onSelectFile,
+    onStage,
+    onUnstage,
+}: TreeItemProps) {
+    const isCollapsed = Boolean(collapsedFolders[node.path]);
+
+    if (node.isFolder) {
+        return (
+            <div className="file-tree-group">
+                <div
+                    className="file-tree-row file-tree-folder"
+                    style={{ paddingLeft: `${8 + level * 14}px` }}
+                    onClick={() => onToggleFolder(node.path)}
+                    title={node.path}
+                >
+                    <span className="file-tree-chevron">
+                        {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </span>
+                    <span className="file-tree-folder-icon">
+                        {isCollapsed ? <Folder size={14} /> : <FolderOpen size={14} />}
+                    </span>
+                    <span className="file-tree-name folder-name">{node.name}</span>
+                    <span className="file-tree-badge">{node.fileCount}</span>
+
+                    <div className="file-tree-actions" onClick={(e) => e.stopPropagation()}>
+                        {isStaged ? (
+                            <button
+                                type="button"
+                                className="btn-icon-action"
+                                title="Unstage folder changes"
+                                onClick={(e) => onUnstage(getAllFilesUnderNode(node), e)}
+                            >
+                                <Minus size={13} />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="btn-icon-action"
+                                title="Stage folder changes"
+                                onClick={(e) => onStage(getAllFilesUnderNode(node), e)}
+                            >
+                                <Plus size={13} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {!isCollapsed &&
+                    node.children.map((child) => (
+                        <FileTreeNodeItem
+                            key={child.path}
+                            node={child}
+                            level={level + 1}
+                            isStaged={isStaged}
+                            selectedFilePath={selectedFilePath}
+                            collapsedFolders={collapsedFolders}
+                            onToggleFolder={onToggleFolder}
+                            onOpenFile={onOpenFile}
+                            onSelectFile={onSelectFile}
+                            onStage={onStage}
+                            onUnstage={onUnstage}
+                        />
+                    ))}
+            </div>
+        );
+    }
+
+    const isSelected = selectedFilePath === node.path;
+    const changeType = node.file?.changeType || 'modified';
+    const badgeChar = changeType[0]?.toUpperCase() || 'M';
+
+    return (
+        <div
+            className={`file-tree-row file-tree-file ${isSelected ? 'selected' : ''}`}
+            style={{ paddingLeft: `${20 + level * 14}px` }}
+            onClick={() => node.file && onSelectFile(node.file, isStaged)}
+            title={node.path}
+        >
+            <span className="file-tree-file-icon">
+                <FileCode size={13} />
+            </span>
+            <span className="file-tree-name file-name">{node.name}</span>
+
+            {(node.additions > 0 || node.deletions > 0) && (
+                <span className="file-tree-stats">
+                    {node.additions > 0 && <span className="stat-add">+{node.additions}</span>}
+                    {node.deletions > 0 && <span className="stat-del">−{node.deletions}</span>}
+                </span>
+            )}
+
+            <div className="file-tree-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                    type="button"
+                    className="btn-icon-action"
+                    title="Open file in editor"
+                    onClick={(e) => onOpenFile(node.path, e)}
+                >
+                    <ExternalLink size={13} />
+                </button>
+
+                {isStaged ? (
+                    <button
+                        type="button"
+                        className="btn-icon-action"
+                        title="Unstage changes"
+                        onClick={(e) => onUnstage([node.path], e)}
+                    >
+                        <Minus size={13} />
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className="btn-icon-action"
+                        title="Stage changes"
+                        onClick={(e) => onStage([node.path], e)}
+                    >
+                        <Plus size={13} />
+                    </button>
+                )}
+            </div>
+
+            <span className={`change-badge ${changeType}`} title={changeType}>
+                {badgeChar}
+            </span>
+        </div>
+    );
 }
 
 export default function FileList() {
     const { stagedFiles, unstagedFiles, selectedFilePath, selectFile } = useCommitStore();
-    const [expanded, setExpanded] = useState(false);
+    const { postMessage } = useVSCodeAPI();
+
     const [showStaged, setShowStaged] = useState(true);
     const [showUnstaged, setShowUnstaged] = useState(true);
-    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+    const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
     const [query, setQuery] = useState('');
 
     const normalizedQuery = query.trim().toLowerCase();
+
     const stagedFiltered = useMemo(() => {
         if (!normalizedQuery) return stagedFiles;
-        return stagedFiles.filter(f => f.path.toLowerCase().includes(normalizedQuery));
+        return stagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedQuery));
     }, [normalizedQuery, stagedFiles]);
 
     const unstagedFiltered = useMemo(() => {
         if (!normalizedQuery) return unstagedFiles;
-        return unstagedFiles.filter(f => f.path.toLowerCase().includes(normalizedQuery));
+        return unstagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedQuery));
     }, [normalizedQuery, unstagedFiles]);
 
-    const totalAdd = stagedFiltered.reduce((acc, f) => acc + f.additions, 0);
-    const totalDel = stagedFiltered.reduce((acc, f) => acc + f.deletions, 0);
-    const visibleFiles = expanded ? stagedFiltered : stagedFiltered.slice(0, 200);
-    const unstagedAdd = unstagedFiltered.reduce((acc, f) => acc + f.additions, 0);
-    const unstagedDel = unstagedFiltered.reduce((acc, f) => acc + f.deletions, 0);
+    const totalStagedAdd = stagedFiltered.reduce((acc, f) => acc + f.additions, 0);
+    const totalStagedDel = stagedFiltered.reduce((acc, f) => acc + f.deletions, 0);
+    const totalUnstagedAdd = unstagedFiltered.reduce((acc, f) => acc + f.additions, 0);
+    const totalUnstagedDel = unstagedFiltered.reduce((acc, f) => acc + f.deletions, 0);
 
-    const stagedGroups = useMemo(() => groupByTopFolder(visibleFiles), [visibleFiles]);
-    const unstagedGroups = useMemo(() => groupByTopFolder(unstagedFiltered), [unstagedFiltered]);
+    const stagedTree = useMemo(() => buildFileTree(stagedFiltered), [stagedFiltered]);
+    const unstagedTree = useMemo(() => buildFileTree(unstagedFiltered), [unstagedFiltered]);
 
-    const toggleGroup = (section: 'staged' | 'unstaged', name: string) => {
-        const key = `${section}:${name}`;
-        setCollapsedGroups((state) => ({ ...state, [key]: !state[key] }));
+    const toggleFolder = (folderPath: string) => {
+        setCollapsedFolders((prev) => ({
+            ...prev,
+            [folderPath]: !prev[folderPath],
+        }));
+    };
+
+    const handleSelectFile = (file: FileChange, isStaged: boolean) => {
+        selectFile(file.path);
+        // Open native diff editor in main VS Code view
+        postMessage('openDiff', { path: file.path, staged: isStaged });
+    };
+
+    const handleOpenFile = (filePath: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('openFile', { path: filePath });
+    };
+
+    const handleStage = (paths: string[], e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('stageFiles', { paths });
+    };
+
+    const handleUnstage = (paths: string[], e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('unstageFiles', { paths });
+    };
+
+    const handleStageAll = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('stageAll');
+    };
+
+    const handleUnstageAll = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('unstageAll');
     };
 
     if (stagedFiles.length === 0 && unstagedFiles.length === 0) {
         return (
             <div className="file-list-empty">
                 <p className="empty-text">No working changes.</p>
-                <p className="empty-hint">Stage files with <code>git add</code> to begin composing.</p>
+                <p className="empty-hint">Edit files or stage changes to begin composing.</p>
             </div>
         );
     }
 
     return (
-        <div className="file-list">
+        <div className="file-list-container">
+            {/* Filter toolbar */}
             <div className="file-list-toolbar">
                 <input
                     className="file-filter-input"
@@ -90,146 +355,131 @@ export default function FileList() {
                 ) : null}
             </div>
 
+            {/* Staged Changes Section */}
             <div className="file-section-header">
                 <button
                     className="file-section-toggle"
                     type="button"
-                    onClick={() => setShowStaged(v => !v)}
-                    title={showStaged ? 'Collapse staged changes' : 'Expand staged changes'}
+                    onClick={() => setShowStaged((v) => !v)}
+                    title={showStaged ? 'Collapse Staged Changes' : 'Expand Staged Changes'}
                 >
-                    <span className="file-section-chevron">{showStaged ? '▾' : '▸'}</span>
-                    <span className="section-label">Staged</span>
-                    <span className="file-section-count">{stagedFiltered.length}{normalizedQuery ? `/${stagedFiles.length}` : ''}</span>
+                    <span className="file-section-chevron">
+                        {showStaged ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </span>
+                    <span className="section-label">Staged Changes</span>
+                    <span className="file-section-count">
+                        {stagedFiltered.length}
+                        {normalizedQuery ? `/${stagedFiles.length}` : ''}
+                    </span>
                 </button>
-                <div className="file-list-stats">
-                    <span className="stat-add">+{totalAdd}</span>
-                    <span className="stat-del">−{totalDel}</span>
-                </div>
-            </div>
 
-            {showStaged ? (
-                <div className="file-list-items">
-                    {stagedGroups.map(group => {
-                        const key = `staged:${group.name}`;
-                        const isCollapsed = Boolean(collapsedGroups[key]);
-                        return (
-                            <div key={key} className="file-group">
-                                <div
-                                    className="file-group-header"
-                                    onClick={() => toggleGroup('staged', group.name)}
-                                    title={isCollapsed ? 'Expand folder' : 'Collapse folder'}
-                                >
-                                    <span className="file-group-toggle">{isCollapsed ? '▸' : '▾'}</span>
-                                    <span className="file-group-name">{group.name}</span>
-                                    <span className="file-group-count">{group.files.length}</span>
-                                    <span className="file-stats">
-                                        <span className="stat-add">+{group.additions}</span>
-                                        <span className="stat-del">−{group.deletions}</span>
-                                    </span>
-                                </div>
-                                {!isCollapsed && group.files.map(file => {
-                                    const fileName = file.path.split('/').pop() || file.path;
-                                    const dir = file.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
-                                    const isSelected = selectedFilePath === file.path;
-                                    return (
-                                        <div
-                                            key={file.path}
-                                            className={`file-list-item file-list-item-indent ${isSelected ? 'selected' : ''}`}
-                                            onClick={() => selectFile(file.path)}
-                                            title={file.path}
-                                        >
-                                            <span className={`change-badge ${file.changeType}`}>
-                                                {file.changeType[0].toUpperCase()}
-                                            </span>
-                                            <div className="file-text">
-                                                <span className="file-name">{fileName}</span>
-                                                {dir ? <span className="file-subpath">{dir}</span> : null}
-                                            </div>
-                                            <span className="file-stats">
-                                                <span className="stat-add">+{file.additions}</span>
-                                                <span className="stat-del">−{file.deletions}</span>
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
-                    {!expanded && stagedFiltered.length > 200 && (
-                        <div className="file-list-load-more">
-                            <span className="empty-hint">Showing 200 of {stagedFiltered.length} files</span>
-                            <button className="btn btn-sm" type="button" onClick={() => setExpanded(true)}>
-                                Show All
+                <div className="file-section-right">
+                    <div className="file-section-actions">
+                        {stagedFiltered.length > 0 && (
+                            <button
+                                type="button"
+                                className="btn-icon-action"
+                                title="Unstage All Changes"
+                                onClick={handleUnstageAll}
+                            >
+                                <Minus size={14} />
                             </button>
+                        )}
+                    </div>
+                    {(totalStagedAdd > 0 || totalStagedDel > 0) && (
+                        <div className="file-list-stats">
+                            {totalStagedAdd > 0 && <span className="stat-add">+{totalStagedAdd}</span>}
+                            {totalStagedDel > 0 && <span className="stat-del">−{totalStagedDel}</span>}
                         </div>
                     )}
                 </div>
-            ) : null}
+            </div>
 
+            {showStaged && (
+                <div className="file-list-tree-items">
+                    {stagedTree.length === 0 ? (
+                        <div className="file-list-subempty">No staged changes</div>
+                    ) : (
+                        stagedTree.map((node) => (
+                            <FileTreeNodeItem
+                                key={`staged-${node.path}`}
+                                node={node}
+                                level={0}
+                                isStaged={true}
+                                selectedFilePath={selectedFilePath}
+                                collapsedFolders={collapsedFolders}
+                                onToggleFolder={toggleFolder}
+                                onOpenFile={handleOpenFile}
+                                onSelectFile={handleSelectFile}
+                                onStage={handleStage}
+                                onUnstage={handleUnstage}
+                            />
+                        ))
+                    )}
+                </div>
+            )}
+
+            {/* Changes (Unstaged) Section */}
             <div className="file-section-header file-list-sub-header">
                 <button
                     className="file-section-toggle"
                     type="button"
-                    onClick={() => setShowUnstaged(value => !value)}
-                    title={showUnstaged ? 'Collapse unstaged changes' : 'Expand unstaged changes'}
+                    onClick={() => setShowUnstaged((v) => !v)}
+                    title={showUnstaged ? 'Collapse Changes' : 'Expand Changes'}
                 >
-                    <span className="file-section-chevron">{showUnstaged ? '▾' : '▸'}</span>
-                    <span className="section-label">Unstaged</span>
-                    <span className="file-section-count">{unstagedFiltered.length}{normalizedQuery ? `/${unstagedFiles.length}` : ''}</span>
+                    <span className="file-section-chevron">
+                        {showUnstaged ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </span>
+                    <span className="section-label">Changes</span>
+                    <span className="file-section-count">
+                        {unstagedFiltered.length}
+                        {normalizedQuery ? `/${unstagedFiles.length}` : ''}
+                    </span>
                 </button>
-                <div className="file-list-stats">
-                    <span className="stat-add">+{unstagedAdd}</span>
-                    <span className="stat-del">−{unstagedDel}</span>
+
+                <div className="file-section-right">
+                    <div className="file-section-actions">
+                        {unstagedFiltered.length > 0 && (
+                            <button
+                                type="button"
+                                className="btn-icon-action"
+                                title="Stage All Changes"
+                                onClick={handleStageAll}
+                            >
+                                <Plus size={14} />
+                            </button>
+                        )}
+                    </div>
+                    {(totalUnstagedAdd > 0 || totalUnstagedDel > 0) && (
+                        <div className="file-list-stats">
+                            {totalUnstagedAdd > 0 && <span className="stat-add">+{totalUnstagedAdd}</span>}
+                            {totalUnstagedDel > 0 && <span className="stat-del">−{totalUnstagedDel}</span>}
+                        </div>
+                    )}
                 </div>
             </div>
+
             {showUnstaged && (
-                <div className="file-list-items">
-                    {unstagedGroups.map(group => {
-                        const key = `unstaged:${group.name}`;
-                        const isCollapsed = Boolean(collapsedGroups[key]);
-                        return (
-                            <div key={key} className="file-group">
-                                <div
-                                    className="file-group-header file-group-header-unstaged"
-                                    onClick={() => toggleGroup('unstaged', group.name)}
-                                    title={isCollapsed ? 'Expand folder' : 'Collapse folder'}
-                                >
-                                    <span className="file-group-toggle">{isCollapsed ? '▸' : '▾'}</span>
-                                    <span className="file-group-name">{group.name}</span>
-                                    <span className="file-group-count">{group.files.length}</span>
-                                    <span className="file-stats">
-                                        <span className="stat-add">+{group.additions}</span>
-                                        <span className="stat-del">−{group.deletions}</span>
-                                    </span>
-                                </div>
-                                {!isCollapsed && group.files.map(file => {
-                                    const fileName = file.path.split('/').pop() || file.path;
-                                    const dir = file.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
-                                    const isSelected = selectedFilePath === file.path;
-                                    return (
-                                        <div
-                                            key={`unstaged-${file.path}`}
-                                            className={`file-list-item file-list-item-indent unstaged ${isSelected ? 'selected' : ''}`}
-                                            onClick={() => selectFile(file.path)}
-                                            title={file.path}
-                                        >
-                                            <span className={`change-badge ${file.changeType}`}>
-                                                {file.changeType[0].toUpperCase()}
-                                            </span>
-                                            <div className="file-text">
-                                                <span className="file-name">{fileName}</span>
-                                                {dir ? <span className="file-subpath">{dir}</span> : null}
-                                            </div>
-                                            <span className="file-stats">
-                                                <span className="stat-add">+{file.additions}</span>
-                                                <span className="stat-del">−{file.deletions}</span>
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
+                <div className="file-list-tree-items">
+                    {unstagedTree.length === 0 ? (
+                        <div className="file-list-subempty">No unstaged changes</div>
+                    ) : (
+                        unstagedTree.map((node) => (
+                            <FileTreeNodeItem
+                                key={`unstaged-${node.path}`}
+                                node={node}
+                                level={0}
+                                isStaged={false}
+                                selectedFilePath={selectedFilePath}
+                                collapsedFolders={collapsedFolders}
+                                onToggleFolder={toggleFolder}
+                                onOpenFile={handleOpenFile}
+                                onSelectFile={handleSelectFile}
+                                onStage={handleStage}
+                                onUnstage={handleUnstage}
+                            />
+                        ))
+                    )}
                 </div>
             )}
         </div>

@@ -255,7 +255,7 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             diagnostics: null,
         }),
     selectDraft: (id) => set({ selectedDraftId: id }),
-    selectFile: (path) => set({ selectedFilePath: path, activeView: 'diff' }),
+    selectFile: (path) => set({ selectedFilePath: path }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
     setError: (error) => set({ error, diagnostics: error?.diagnostics || null }),

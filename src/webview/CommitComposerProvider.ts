@@ -141,6 +141,10 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    public getGitService(): GitService {
+        return this.getOrchestrator().getGitService();
+    }
+
     private getOrchestrator(): Orchestrator {
         if (!this._orchestrator) {
             this._orchestrator = new Orchestrator(new GitService(this._workspacePath));

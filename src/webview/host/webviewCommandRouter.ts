@@ -25,6 +25,7 @@ export interface WebviewCommandRegistrySet {
     commit: WebviewCommandRegistry;
     providerHealth: WebviewCommandRegistry;
     workspace: WebviewCommandRegistry;
+    gitActions: WebviewCommandRegistry;
 }
 
 export interface WebviewCommandRouterOptions {
@@ -34,16 +35,19 @@ export interface WebviewCommandRouterOptions {
 export function createWebviewCommandRouter(deps: WebviewCommandRouterDeps, options: WebviewCommandRouterOptions = {}) {
     let defaultRegistries: WebviewCommandRegistrySet | null = null;
     const getDefaults = () => defaultRegistries || (defaultRegistries = createDefaultRegistries(deps));
-    const composeHandlers = options.registries?.compose || getDefaults().compose;
-    const commitHandlers = options.registries?.commit || getDefaults().commit;
-    const providerHealthHandlers = options.registries?.providerHealth || getDefaults().providerHealth;
-    const workspaceHandlers = options.registries?.workspace || getDefaults().workspace;
+    const hasExplicitRegistries = Boolean(options.registries);
+    const composeHandlers = options.registries?.compose || (hasExplicitRegistries ? {} : getDefaults().compose);
+    const commitHandlers = options.registries?.commit || (hasExplicitRegistries ? {} : getDefaults().commit);
+    const providerHealthHandlers = options.registries?.providerHealth || (hasExplicitRegistries ? {} : getDefaults().providerHealth);
+    const workspaceHandlers = options.registries?.workspace || (hasExplicitRegistries ? {} : getDefaults().workspace);
+    const gitActionHandlers = options.registries?.gitActions || (hasExplicitRegistries ? {} : getDefaults().gitActions);
 
     const handlers: Partial<Record<WebviewToHostCommand, CommandHandler>> = {
         ...composeHandlers,
         ...commitHandlers,
         ...providerHealthHandlers,
         ...workspaceHandlers,
+        ...gitActionHandlers,
     };
 
     return async (message: WebviewToHostMessage, webview: vscode.Webview): Promise<void> => {
@@ -61,6 +65,7 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
     const { createCommitHandlers } = require('./handlers/commitHandlers');
     const { createProviderHealthHandlers } = require('./handlers/providerHealthHandlers');
     const { createWorkspaceHandlers } = require('./handlers/workspaceHandlers');
+    const { createGitActionHandlers } = require('./handlers/gitActionHandlers');
 
     return {
         compose: createComposeHandlers({
@@ -86,6 +91,10 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
             openComposerPanel: deps.openComposerPanel,
             openWorkspace: deps.openWorkspace,
             ensureWorkspacePath: deps.ensureWorkspacePath || (async () => undefined),
+        }),
+        gitActions: createGitActionHandlers({
+            getGitService: () => deps.getOrchestrator().getGitService(),
+            refreshVisibleViews: deps.refreshVisibleViews,
         }),
     };
 }

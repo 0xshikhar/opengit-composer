@@ -287,12 +287,18 @@ export class Orchestrator {
             }
 
             const requestMeta = this.aiProvider?.consumeRequestMeta();
-            if (requestMeta?.failover) {
+            const isActualModelFailover = Boolean(
+                requestMeta?.failover &&
+                requestMeta.requestedModel &&
+                requestMeta.usedModel &&
+                requestMeta.requestedModel !== requestMeta.usedModel
+            );
+            if (isActualModelFailover) {
                 Logger.warn('Orchestrator: AI provider model failover occurred', {
                     provider: providerConfig.provider,
-                    requestedModel: requestMeta.requestedModel,
-                    usedModel: requestMeta.usedModel,
-                    reason: requestMeta.failoverReason,
+                    requestedModel: requestMeta!.requestedModel,
+                    usedModel: requestMeta!.usedModel,
+                    reason: requestMeta!.failoverReason,
                 });
             }
             const drafts: DraftCommit[] = result.groups.map(group => ({
@@ -321,8 +327,8 @@ export class Orchestrator {
                         : undefined,
                     aiRequestedModel: requestMeta?.requestedModel,
                     aiUsedModel: requestMeta?.usedModel,
-                    aiModelFailover: requestMeta?.failover,
-                    aiModelFailoverReason: requestMeta?.failoverReason,
+                    aiModelFailover: isActualModelFailover,
+                    aiModelFailoverReason: isActualModelFailover ? requestMeta?.failoverReason : undefined,
                     parserFallbackStrategy: result.parserMeta?.usedFallback ? result.parserMeta.strategy : undefined,
                     parserFallbackDetails: result.parserMeta?.details,
                     parserQualityScore: result.parserMeta?.qualityScore,

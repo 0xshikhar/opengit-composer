@@ -64,9 +64,9 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
     };
 
     const pendingCount = drafts.filter(draft => draft.state !== 'committed').length;
-    const modelFailover = composeMeta?.aiModelFailover;
     const requestedModel = composeMeta?.aiRequestedModel;
     const usedModel = composeMeta?.aiUsedModel;
+    const modelFailover = Boolean(composeMeta?.aiModelFailover && requestedModel && usedModel && requestedModel !== usedModel);
     const aiRequestFailed = composeMeta?.fallbackReason === 'ai_request_failed' || !!composeMeta?.aiRequestError;
     const aiRequestHeadline = aiRequestFailed
         ? [

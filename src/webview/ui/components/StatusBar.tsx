@@ -81,7 +81,12 @@ export default function StatusBar() {
         const avgConfidence = Math.round(
             drafts.reduce((acc, d) => acc + d.confidence, 0) / total
         );
-        const modelFailoverActive = composeMeta?.aiModelFailover;
+        const modelFailoverActive = Boolean(
+            composeMeta?.aiModelFailover &&
+            composeMeta.aiRequestedModel &&
+            composeMeta.aiUsedModel &&
+            composeMeta.aiRequestedModel !== composeMeta.aiUsedModel
+        );
         const aiRequestFailed = composeMeta?.fallbackReason === 'ai_request_failed' || !!composeMeta?.aiRequestError;
 
         return (

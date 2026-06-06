@@ -174,7 +174,7 @@ export default function AIControls() {
                     {isLocal ? 'Local runtime' : hasKeys ? `Keys configured: ${keys.length}` : 'No keys configured'}
                 </span>
                 <span className="ai-provider-meta">
-                    Model: {providerConfig.model || 'Default'}
+                    Model: {providerConfig.model || (isLocal ? (ollamaModels[0] ? `Active (${ollamaModels[0]})` : 'Active model') : 'Default')}
                 </span>
                 {connectionTest && connectionTest.provider === providerConfig.provider && (
                     <span className="ai-provider-meta">
@@ -348,7 +348,7 @@ export default function AIControls() {
                     onChange={(e) => handleModelChange(e.target.value)}
                     disabled={isLoading}
                 >
-                    <option value="">{isLocal ? 'Active model' : 'Default'}</option>
+                    <option value="">{isLocal ? (ollamaModels[0] ? `Active model (${ollamaModels[0]})` : 'Active model') : 'Default'}</option>
                     {(isLocal ? ollamaModels : selectedProvider.models).map(m => (
                         <option key={m} value={m}>{m}</option>
                     ))}

@@ -121,9 +121,13 @@ export class LMStudioProvider extends AIProvider {
         }
     }
 
+    private static unsupportedResponseFormatKeys = new Set<string>();
+
     protected async makeRequest(prompt: string, mode: 'json' | 'text' = 'json'): Promise<any> {
         const model = await this.resolveModel();
         const url = `${this.baseUrl}/chat/completions`;
+        const cacheKey = `${this.baseUrl}:${model}`;
+        const canUseResponseFormat = mode === 'json' && !LMStudioProvider.unsupportedResponseFormatKeys.has(cacheKey);
 
         const executeRequest = async (useResponseFormat: boolean): Promise<any> => {
             const requestBody: Record<string, unknown> = {
@@ -172,11 +176,12 @@ export class LMStudioProvider extends AIProvider {
             Logger.info('LMStudioProvider: Making API request', {
                 model,
                 mode,
+                useResponseFormat: canUseResponseFormat,
                 promptLength: prompt.length,
                 baseUrl: this.baseUrl,
             });
             const start = Date.now();
-            const data = await executeRequest(true);
+            const data = await executeRequest(canUseResponseFormat);
             Logger.aiResponse('LM Studio', 200, JSON.stringify(data).length, Date.now() - start);
             this.requestMeta = {
                 requestedModel: model,
@@ -191,17 +196,19 @@ export class LMStudioProvider extends AIProvider {
                 ? `${typeof responseData === 'string' ? responseData : JSON.stringify(responseData || {})} ${message}`
                 : message;
             const isResponseFormatError =
-                mode === 'json' &&
+                canUseResponseFormat &&
                 (
                     (axios.isAxiosError(error) && [400, 404, 422].includes(error.response?.status ?? 0)) ||
                     /response_format|json_object|JSON|schema|invalid/i.test(responseText)
                 );
 
             if (isResponseFormatError) {
-                Logger.warn('LMStudioProvider: Retrying without response_format after request failure', {
+                Logger.warn('LMStudioProvider: Server rejected response_format, remembering compatibility setting and retrying without response_format', {
                     model,
                     message,
                 });
+                LMStudioProvider.unsupportedResponseFormatKeys.add(cacheKey);
+
                 try {
                     const start = Date.now();
                     const data = await executeRequest(false);
@@ -209,8 +216,7 @@ export class LMStudioProvider extends AIProvider {
                     this.requestMeta = {
                         requestedModel: model,
                         usedModel: model,
-                        failover: true,
-                        failoverReason: 'LM Studio request retried without response_format for compatibility.',
+                        failover: false,
                     };
                     return data;
                 } catch (fallbackError) {

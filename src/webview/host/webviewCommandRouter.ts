@@ -95,6 +95,9 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
         gitActions: createGitActionHandlers({
             getGitService: () => deps.getOrchestrator().getGitService(),
             refreshVisibleViews: deps.refreshVisibleViews,
+            getOrchestrator: () => deps.getOrchestrator(),
+            getConfigLoader: () => deps.getConfigLoader(),
+            keyManager: deps.keyManager,
         }),
     };
 }

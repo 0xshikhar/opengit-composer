@@ -99,6 +99,39 @@ export class GitService {
         await this.git.reset(['HEAD']);
     }
 
+    // --- Discard Changes ---
+
+    async discardFiles(files: string[]): Promise<void> {
+        const normalizedFiles = files.filter(Boolean);
+        if (normalizedFiles.length === 0) return;
+
+        const status = await this.git.status();
+        const untracked: string[] = [];
+        const tracked: string[] = [];
+
+        for (const file of normalizedFiles) {
+            const isUntracked = status.not_added.includes(file) ||
+                status.files.some(f => f.path === file && (f.working_dir === '?' || f.index === '?'));
+            if (isUntracked) {
+                untracked.push(file);
+            } else {
+                tracked.push(file);
+            }
+        }
+
+        if (tracked.length > 0) {
+            await this.git.checkout(['--', ...tracked]);
+        }
+        if (untracked.length > 0) {
+            await this.git.raw(['clean', '-f', '-d', '--', ...untracked]);
+        }
+    }
+
+    async discardAll(): Promise<void> {
+        await this.git.checkout(['--', '.']);
+        await this.git.raw(['clean', '-f', '-d']);
+    }
+
     // --- Commit ---
 
     async createCommit(message: string, files?: string[]): Promise<void> {

@@ -9,6 +9,7 @@ import DiffViewer from './components/DiffViewer';
 import CommitEditor from './components/CommitEditor';
 import ComposeWorkspace from './components/ComposeWorkspace';
 import StatusBar from './components/StatusBar';
+import InlineCommitBox from './components/InlineCommitBox';
 import './index.css';
 
 type BootstrapPayload = {
@@ -183,6 +184,7 @@ export default function App() {
                     clearWarning();
                     setLoading(false);
                     setCommitting(false);
+                    useCommitStore.getState().setIsGeneratingQuickCommit(false);
                     break;
                 case 'connectionTested':
                     if (message.result) {
@@ -281,18 +283,20 @@ export default function App() {
                 </>
             ) : (
                 <section className="sidebar-launch-card">
-                    <div className="sidebar-launch-title">Working Changes</div>
-                    <div className="sidebar-launch-meta">
-                        {stagedFiles.length} staged • {unstagedFiles.length} unstaged
+                    <InlineCommitBox />
+                    <div className="sidebar-launch-footer">
+                        <div className="sidebar-launch-meta">
+                            {stagedFiles.length} staged • {unstagedFiles.length} unstaged
+                        </div>
+                        <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleComposeInPanel(false)}
+                            disabled={stagedFiles.length === 0}
+                            title={stagedFiles.length === 0 ? 'Stage changes to compose multi-commit sets' : 'Opens the full composer panel for intelligent splitting'}
+                        >
+                            ⚡ Split Commits
+                        </button>
                     </div>
-                    <button
-                        className="btn btn-primary btn-full"
-                        onClick={() => handleComposeInPanel(false)}
-                        disabled={stagedFiles.length === 0}
-                        title={stagedFiles.length === 0 ? 'Stage changes to compose commits' : 'Opens the full composer panel'}
-                    >
-                        Compose commit
-                    </button>
                 </section>
             )}
 

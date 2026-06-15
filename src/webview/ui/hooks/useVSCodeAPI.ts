@@ -78,6 +78,15 @@ export function useVSCodeAPI() {
                 setConnectionTest(payload.result);
             }
 
+            if (payload.command === 'quickCommitGenerating') {
+                useCommitStore.getState().setIsGeneratingQuickCommit(true);
+            }
+
+            if (payload.command === 'quickCommitMessageGenerated' && typeof payload.message === 'string') {
+                useCommitStore.getState().setQuickCommitMessage(payload.message);
+                useCommitStore.getState().setIsGeneratingQuickCommit(false);
+            }
+
             if (payload.command === 'diagnostics' && payload.diagnostics) {
                 setDiagnostics(payload.diagnostics);
             }

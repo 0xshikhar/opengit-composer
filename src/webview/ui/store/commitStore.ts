@@ -141,6 +141,9 @@ interface CommitStoreState {
     // UI state
     selectedDraftId: string | null;
     selectedFilePath: string | null;
+    selectedFilePaths: string[];
+    quickCommitMessage: string;
+    isGeneratingQuickCommit: boolean;
     isLoading: boolean;
     isCommitting: boolean;
     error: ComposerErrorState | null;
@@ -173,6 +176,11 @@ interface CommitStoreState {
     ) => void;
     selectDraft: (id: string | null) => void;
     selectFile: (path: string | null) => void;
+    setSelectedFilePaths: (paths: string[]) => void;
+    toggleFileSelection: (path: string, isMulti?: boolean) => void;
+    clearFileSelection: () => void;
+    setQuickCommitMessage: (message: string) => void;
+    setIsGeneratingQuickCommit: (isGenerating: boolean) => void;
     setLoading: (loading: boolean) => void;
     setCommitting: (committing: boolean) => void;
     setError: (error: ComposerErrorState | null) => void;
@@ -225,6 +233,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     diagnostics: null,
     selectedDraftId: null,
     selectedFilePath: null,
+    selectedFilePaths: [],
+    quickCommitMessage: '',
+    isGeneratingQuickCommit: false,
     isLoading: false,
     isCommitting: false,
     error: null,
@@ -256,6 +267,29 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
         }),
     selectDraft: (id) => set({ selectedDraftId: id }),
     selectFile: (path) => set({ selectedFilePath: path }),
+    setSelectedFilePaths: (paths) => set({ selectedFilePaths: paths }),
+    toggleFileSelection: (path, isMulti = false) =>
+        set((state) => {
+            if (!isMulti) {
+                return {
+                    selectedFilePaths: state.selectedFilePaths.includes(path) && state.selectedFilePaths.length === 1
+                        ? []
+                        : [path],
+                    selectedFilePath: path,
+                };
+            }
+            const exists = state.selectedFilePaths.includes(path);
+            const next = exists
+                ? state.selectedFilePaths.filter((p) => p !== path)
+                : [...state.selectedFilePaths, path];
+            return {
+                selectedFilePaths: next,
+                selectedFilePath: next.length > 0 ? next[next.length - 1] : null,
+            };
+        }),
+    clearFileSelection: () => set({ selectedFilePaths: [], selectedFilePath: null }),
+    setQuickCommitMessage: (message) => set({ quickCommitMessage: message }),
+    setIsGeneratingQuickCommit: (isGenerating) => set({ isGeneratingQuickCommit: isGenerating }),
     setLoading: (loading) => set({ isLoading: loading }),
     setCommitting: (committing) => set({ isCommitting: committing }),
     setError: (error) => set({ error, diagnostics: error?.diagnostics || null }),
@@ -370,6 +404,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
             diagnostics: null,
             selectedDraftId: null,
             selectedFilePath: null,
+            selectedFilePaths: [],
+            quickCommitMessage: '',
+            isGeneratingQuickCommit: false,
             isLoading: false,
             isCommitting: false,
             error: null,

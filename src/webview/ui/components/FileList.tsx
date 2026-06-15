@@ -8,6 +8,8 @@ import {
     FolderOpen,
     Minus,
     Plus,
+    Undo2,
+    X,
 } from 'lucide-react';
 import { useCommitStore, FileChange } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
@@ -42,59 +44,49 @@ function buildFileTree(files: FileChange[]): FileTreeNode[] {
                         path: subPath,
                         isFolder: !isLast,
                         file: isLast ? file : undefined,
-                    },
+                        children: [],
+                        fileCount: isLast ? 1 : 0,
+                        additions: isLast ? file.additions : 0,
+                        deletions: isLast ? file.deletions : 0,
+                    } as FileTreeNode,
                     children: {},
                 };
+            } else if (isLast) {
+                current[segment].node.file = file;
+                current[segment].node.isFolder = false;
+                current[segment].node.additions = file.additions;
+                current[segment].node.deletions = file.deletions;
             }
+
             current = current[segment].children;
         }
     }
 
-    function convertChildren(obj: Record<string, any>): FileTreeNode[] {
-        const list: FileTreeNode[] = [];
-        const keys = Object.keys(obj);
+    function convertChildren(map: Record<string, any>): FileTreeNode[] {
+        const nodes: FileTreeNode[] = [];
 
-        for (const key of keys) {
-            const item = obj[key];
-            const children = convertChildren(item.children);
+        for (const key of Object.keys(map)) {
+            const entry = map[key];
+            const node = entry.node as FileTreeNode;
 
-            let fileCount = item.node.isFolder ? 0 : 1;
-            let additions = item.node.file ? item.node.file.additions : 0;
-            let deletions = item.node.file ? item.node.file.deletions : 0;
-
-            for (const child of children) {
-                fileCount += child.fileCount;
-                additions += child.additions;
-                deletions += child.deletions;
+            if (node.isFolder) {
+                node.children = convertChildren(entry.children);
+                node.fileCount = node.children.reduce((acc, c) => acc + c.fileCount, 0);
+                node.additions = node.children.reduce((acc, c) => acc + c.additions, 0);
+                node.deletions = node.children.reduce((acc, c) => acc + c.deletions, 0);
             }
 
-            children.sort((a, b) => {
-                if (a.isFolder === b.isFolder) {
-                    return a.name.localeCompare(b.name);
-                }
-                return a.isFolder ? -1 : 1;
-            });
-
-            list.push({
-                name: item.node.name,
-                path: item.node.path,
-                isFolder: item.node.isFolder,
-                file: item.node.file,
-                children,
-                fileCount,
-                additions,
-                deletions,
-            });
+            nodes.push(node);
         }
 
-        list.sort((a, b) => {
-            if (a.isFolder === b.isFolder) {
-                return a.name.localeCompare(b.name);
+        nodes.sort((a, b) => {
+            if (a.isFolder !== b.isFolder) {
+                return a.isFolder ? -1 : 1;
             }
-            return a.isFolder ? -1 : 1;
+            return a.name.localeCompare(b.name);
         });
 
-        return list;
+        return nodes;
     }
 
     return convertChildren(rootMap);
@@ -115,26 +107,28 @@ interface TreeItemProps {
     node: FileTreeNode;
     level: number;
     isStaged: boolean;
-    selectedFilePath: string | null;
+    selectedFilePaths: string[];
     collapsedFolders: Record<string, boolean>;
     onToggleFolder: (path: string) => void;
     onOpenFile: (path: string, e: React.MouseEvent) => void;
-    onSelectFile: (file: FileChange, isStaged: boolean) => void;
-    onStage: (paths: string[], e: React.MouseEvent) => void;
-    onUnstage: (paths: string[], e: React.MouseEvent) => void;
+    onRowClick: (file: FileChange, isStaged: boolean, e: React.MouseEvent) => void;
+    onStage: (paths: string[], e?: React.MouseEvent) => void;
+    onUnstage: (paths: string[], e?: React.MouseEvent) => void;
+    onDiscard: (paths: string[], e?: React.MouseEvent) => void;
 }
 
 function FileTreeNodeItem({
     node,
     level,
     isStaged,
-    selectedFilePath,
+    selectedFilePaths,
     collapsedFolders,
     onToggleFolder,
     onOpenFile,
-    onSelectFile,
+    onRowClick,
     onStage,
     onUnstage,
+    onDiscard,
 }: TreeItemProps) {
     const isCollapsed = Boolean(collapsedFolders[node.path]);
 
@@ -167,14 +161,24 @@ function FileTreeNodeItem({
                                 <Minus size={13} />
                             </button>
                         ) : (
-                            <button
-                                type="button"
-                                className="btn-icon-action"
-                                title="Stage folder changes"
-                                onClick={(e) => onStage(getAllFilesUnderNode(node), e)}
-                            >
-                                <Plus size={13} />
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    className="btn-icon-action btn-icon-danger"
+                                    title="Discard folder changes"
+                                    onClick={(e) => onDiscard(getAllFilesUnderNode(node), e)}
+                                >
+                                    <Undo2 size={13} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-icon-action"
+                                    title="Stage folder changes"
+                                    onClick={(e) => onStage(getAllFilesUnderNode(node), e)}
+                                >
+                                    <Plus size={13} />
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -186,20 +190,21 @@ function FileTreeNodeItem({
                             node={child}
                             level={level + 1}
                             isStaged={isStaged}
-                            selectedFilePath={selectedFilePath}
+                            selectedFilePaths={selectedFilePaths}
                             collapsedFolders={collapsedFolders}
                             onToggleFolder={onToggleFolder}
                             onOpenFile={onOpenFile}
-                            onSelectFile={onSelectFile}
+                            onRowClick={onRowClick}
                             onStage={onStage}
                             onUnstage={onUnstage}
+                            onDiscard={onDiscard}
                         />
                     ))}
             </div>
         );
     }
 
-    const isSelected = selectedFilePath === node.path;
+    const isSelected = selectedFilePaths.includes(node.path);
     const changeType = node.file?.changeType || 'modified';
     const badgeChar = changeType[0]?.toUpperCase() || 'M';
 
@@ -207,7 +212,7 @@ function FileTreeNodeItem({
         <div
             className={`file-tree-row file-tree-file ${isSelected ? 'selected' : ''}`}
             style={{ paddingLeft: `${20 + level * 14}px` }}
-            onClick={() => node.file && onSelectFile(node.file, isStaged)}
+            onClick={(e) => node.file && onRowClick(node.file, isStaged, e)}
             title={node.path}
         >
             <span className="file-tree-file-icon">
@@ -242,14 +247,24 @@ function FileTreeNodeItem({
                         <Minus size={13} />
                     </button>
                 ) : (
-                    <button
-                        type="button"
-                        className="btn-icon-action"
-                        title="Stage changes"
-                        onClick={(e) => onStage([node.path], e)}
-                    >
-                        <Plus size={13} />
-                    </button>
+                    <>
+                        <button
+                            type="button"
+                            className="btn-icon-action btn-icon-danger"
+                            title="Discard changes"
+                            onClick={(e) => onDiscard([node.path], e)}
+                        >
+                            <Undo2 size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            className="btn-icon-action"
+                            title="Stage changes"
+                            onClick={(e) => onStage([node.path], e)}
+                        >
+                            <Plus size={13} />
+                        </button>
+                    </>
                 )}
             </div>
 
@@ -261,7 +276,15 @@ function FileTreeNodeItem({
 }
 
 export default function FileList() {
-    const { stagedFiles, unstagedFiles, selectedFilePath, selectFile } = useCommitStore();
+    const {
+        stagedFiles,
+        unstagedFiles,
+        selectedFilePaths,
+        setSelectedFilePaths,
+        toggleFileSelection,
+        clearFileSelection,
+        selectFile,
+    } = useCommitStore();
     const { postMessage } = useVSCodeAPI();
 
     const [showStaged, setShowStaged] = useState(true);
@@ -289,6 +312,16 @@ export default function FileList() {
     const stagedTree = useMemo(() => buildFileTree(stagedFiltered), [stagedFiltered]);
     const unstagedTree = useMemo(() => buildFileTree(unstagedFiltered), [unstagedFiltered]);
 
+    const selectedStagedPaths = useMemo(() => {
+        const stagedSet = new Set(stagedFiles.map((f) => f.path));
+        return selectedFilePaths.filter((p) => stagedSet.has(p));
+    }, [selectedFilePaths, stagedFiles]);
+
+    const selectedUnstagedPaths = useMemo(() => {
+        const unstagedSet = new Set(unstagedFiles.map((f) => f.path));
+        return selectedFilePaths.filter((p) => unstagedSet.has(p));
+    }, [selectedFilePaths, unstagedFiles]);
+
     const toggleFolder = (folderPath: string) => {
         setCollapsedFolders((prev) => ({
             ...prev,
@@ -296,10 +329,28 @@ export default function FileList() {
         }));
     };
 
-    const handleSelectFile = (file: FileChange, isStaged: boolean) => {
-        selectFile(file.path);
-        // Open native diff editor in main VS Code view
-        postMessage('openDiff', { path: file.path, staged: isStaged });
+    const handleRowClick = (file: FileChange, isStaged: boolean, e: React.MouseEvent) => {
+        if (e.metaKey || e.ctrlKey) {
+            toggleFileSelection(file.path, true);
+        } else if (e.shiftKey && selectedFilePaths.length > 0) {
+            const allPaths = [...stagedFiltered.map((f) => f.path), ...unstagedFiltered.map((f) => f.path)];
+            const lastSelected = selectedFilePaths[selectedFilePaths.length - 1];
+            const lastIdx = allPaths.indexOf(lastSelected);
+            const currIdx = allPaths.indexOf(file.path);
+            if (lastIdx !== -1 && currIdx !== -1) {
+                const start = Math.min(lastIdx, currIdx);
+                const end = Math.max(lastIdx, currIdx);
+                const range = allPaths.slice(start, end + 1);
+                const union = Array.from(new Set([...selectedFilePaths, ...range]));
+                setSelectedFilePaths(union);
+            } else {
+                toggleFileSelection(file.path, false);
+            }
+        } else {
+            setSelectedFilePaths([file.path]);
+            selectFile(file.path);
+            postMessage('openDiff', { path: file.path, staged: isStaged });
+        }
     };
 
     const handleOpenFile = (filePath: string, e: React.MouseEvent) => {
@@ -307,14 +358,22 @@ export default function FileList() {
         postMessage('openFile', { path: filePath });
     };
 
-    const handleStage = (paths: string[], e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleStage = (paths: string[], e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (paths.length === 0) return;
         postMessage('stageFiles', { paths });
     };
 
-    const handleUnstage = (paths: string[], e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleUnstage = (paths: string[], e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (paths.length === 0) return;
         postMessage('unstageFiles', { paths });
+    };
+
+    const handleDiscard = (paths: string[], e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (paths.length === 0) return;
+        postMessage('discardFiles', { paths });
     };
 
     const handleStageAll = (e: React.MouseEvent) => {
@@ -325,6 +384,11 @@ export default function FileList() {
     const handleUnstageAll = (e: React.MouseEvent) => {
         e.stopPropagation();
         postMessage('unstageAll');
+    };
+
+    const handleDiscardAll = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        postMessage('discardAll');
     };
 
     if (stagedFiles.length === 0 && unstagedFiles.length === 0) {
@@ -354,6 +418,53 @@ export default function FileList() {
                     </button>
                 ) : null}
             </div>
+
+            {/* Batch actions bar for multi-selection */}
+            {selectedFilePaths.length > 1 && (
+                <div className="file-list-batch-bar">
+                    <span className="batch-count">{selectedFilePaths.length} selected</span>
+                    <div className="batch-actions">
+                        {selectedUnstagedPaths.length > 0 && (
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => handleStage(selectedUnstagedPaths)}
+                                title="Stage Selected"
+                            >
+                                <Plus size={12} /> Stage
+                            </button>
+                        )}
+                        {selectedStagedPaths.length > 0 && (
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => handleUnstage(selectedStagedPaths)}
+                                title="Unstage Selected"
+                            >
+                                <Minus size={12} /> Unstage
+                            </button>
+                        )}
+                        {selectedUnstagedPaths.length > 0 && (
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleDiscard(selectedUnstagedPaths)}
+                                title="Discard Selected Changes"
+                            >
+                                <Undo2 size={12} /> Discard
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            className="btn-icon-action"
+                            onClick={clearFileSelection}
+                            title="Clear selection"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Staged Changes Section */}
             <div className="file-section-header">
@@ -406,13 +517,14 @@ export default function FileList() {
                                 node={node}
                                 level={0}
                                 isStaged={true}
-                                selectedFilePath={selectedFilePath}
+                                selectedFilePaths={selectedFilePaths}
                                 collapsedFolders={collapsedFolders}
                                 onToggleFolder={toggleFolder}
                                 onOpenFile={handleOpenFile}
-                                onSelectFile={handleSelectFile}
+                                onRowClick={handleRowClick}
                                 onStage={handleStage}
                                 onUnstage={handleUnstage}
+                                onDiscard={handleDiscard}
                             />
                         ))
                     )}
@@ -440,14 +552,24 @@ export default function FileList() {
                 <div className="file-section-right">
                     <div className="file-section-actions">
                         {unstagedFiltered.length > 0 && (
-                            <button
-                                type="button"
-                                className="btn-icon-action"
-                                title="Stage All Changes"
-                                onClick={handleStageAll}
-                            >
-                                <Plus size={14} />
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    className="btn-icon-action btn-icon-danger"
+                                    title="Discard All Changes"
+                                    onClick={handleDiscardAll}
+                                >
+                                    <Undo2 size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-icon-action"
+                                    title="Stage All Changes"
+                                    onClick={handleStageAll}
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </>
                         )}
                     </div>
                     {(totalUnstagedAdd > 0 || totalUnstagedDel > 0) && (
@@ -470,13 +592,14 @@ export default function FileList() {
                                 node={node}
                                 level={0}
                                 isStaged={false}
-                                selectedFilePath={selectedFilePath}
+                                selectedFilePaths={selectedFilePaths}
                                 collapsedFolders={collapsedFolders}
                                 onToggleFolder={toggleFolder}
                                 onOpenFile={handleOpenFile}
-                                onSelectFile={handleSelectFile}
+                                onRowClick={handleRowClick}
                                 onStage={handleStage}
                                 onUnstage={handleUnstage}
+                                onDiscard={handleDiscard}
                             />
                         ))
                     )}

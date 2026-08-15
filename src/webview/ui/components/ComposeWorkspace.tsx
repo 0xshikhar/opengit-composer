@@ -1,6 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Sparkles, Check, FileCheck, AlertCircle, Info, ExternalLink } from 'lucide-react';
 import { useCommitStore } from '../store/commitStore';
 import { useVSCodeAPI } from '../hooks/useVSCodeAPI';
+import FileDiffAccordion from './FileDiffAccordion';
+
+const CONVENTIONAL_TYPES = ['feat', 'fix', 'refactor', 'chore', 'docs', 'test', 'style', 'perf'] as const;
+
+function applyTypePrefix(current: string, newType: string): string {
+    const trimmed = current.trim();
+    if (!trimmed) return `${newType}: `;
+    const match = trimmed.match(/^([a-z]+)(\([^)]+\))?(!)?:\s*(.*)$/is);
+    if (match) {
+        const scope = match[2] || '';
+        const breaking = match[3] || '';
+        const rest = match[4] || '';
+        return `${newType}${scope}${breaking}: ${rest}`;
+    }
+    return `${newType}: ${trimmed}`;
+}
 
 interface ComposeWorkspaceProps {
     isPanelMode: boolean;
@@ -63,6 +80,10 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
         postMessage('commitAll', { drafts: pending, snapshot: composeSnapshot });
     };
 
+    const handleOpenFile = (path: string) => {
+        postMessage('openFile', { path });
+    };
+
     const pendingCount = drafts.filter(draft => draft.state !== 'committed').length;
     const requestedModel = composeMeta?.aiRequestedModel;
     const usedModel = composeMeta?.aiUsedModel;
@@ -92,194 +113,139 @@ export default function ComposeWorkspace({ isPanelMode }: ComposeWorkspaceProps)
         );
     }
 
+    const currentSubject = editorMessage.split('\n')[0] || '';
+    const subjectLength = currentSubject.length;
+
     return (
         <section className="compose-workspace">
-            <header className="compose-header">
-                <div>
-                    <h3 className="compose-title">Generated Commits</h3>
-                    {aiRequestFailed && (
-                        <div className="compose-alert compose-alert-warning" role="alert">
-                            <div className="compose-alert-icon">⚠️</div>
-                            <div className="compose-alert-copy">
-                                <strong>{aiRequestHeadline || 'AI request failed'}</strong>
-                                {aiRequestBody && (
-                                    <p>{aiRequestBody}</p>
-                                )}
-                                {!aiRequestBody && (
-                                    <p>Falling back to heuristic draft mode.</p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                    {summary && <p className="compose-summary">{summary}</p>}
-                    {modelFailover && (
-                        <p className="compose-summary compose-summary-warning">
-                            AI model failover active: {requestedModel || 'primary model'} switched to {usedModel || 'a fallback model'}.
-                            {composeMeta?.aiModelFailoverReason ? ` ${composeMeta.aiModelFailoverReason}` : ''}
-                        </p>
-                    )}
-                    {composeMeta?.usedFallback && (
-                        <p className="compose-summary compose-summary-warning">
-                            Fallback mode active ({composeMeta.fallbackReason || 'AI fallback'}).
-                        </p>
-                    )}
-                    {composeMeta?.parserFallbackStrategy && (
-                        <p className="compose-summary">
-                            Parser strategy: {composeMeta.parserFallbackStrategy}
-                            {composeMeta.parserQualityScore ? ` • quality ${composeMeta.parserQualityScore}/100` : ''}
-                        </p>
-                    )}
-                    {composeMeta?.parserFallbackDetails && (
-                        <p className="compose-summary">
-                            {composeMeta.parserFallbackDetails}
-                        </p>
-                    )}
-                    {(composeMeta?.excludedFileCount || composeMeta?.redactedMatchCount) ? (
-                        <p className="compose-summary">
-                            Privacy policy: excluded {composeMeta?.excludedFileCount || 0} file(s), redacted {composeMeta?.redactedMatchCount || 0} match(es).
-                        </p>
-                    ) : null}
-                    {(composeMeta?.invalidExcludePatterns?.length || composeMeta?.invalidRedactPatterns?.length) ? (
-                        <p className="compose-summary compose-summary-warning">
-                            Invalid privacy patterns were ignored before compose.
-                        </p>
-                    ) : null}
+            {aiRequestFailed && (
+                <div className="compose-alert compose-alert-warning" role="alert">
+                    <div className="compose-alert-icon">⚠️</div>
+                    <div className="compose-alert-copy">
+                        <strong>{aiRequestHeadline || 'AI request failed'}</strong>
+                        {aiRequestBody ? <p>{aiRequestBody}</p> : <p>Falling back to heuristic draft mode.</p>}
+                    </div>
                 </div>
-                <div className="compose-header-actions">
-                    {!isPanelMode && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => setActiveView('tree')}>
-                            Back
-                        </button>
-                    )}
-                    <button
-                        className="btn btn-success btn-sm"
-                        onClick={handleCommitAll}
-                        disabled={isCommitting || pendingCount === 0}
-                    >
-                        Commit All ({pendingCount})
-                    </button>
-                </div>
-            </header>
-
-            {reasoning && (
-                <article className="compose-reasoning-card">
-                    <div className="section-label">Composition Reasoning</div>
-                    <p>{reasoning}</p>
-                </article>
             )}
 
-            <div className="compose-grid">
-                <aside className="compose-list">
-                    <div className="section-label">Draft Commits ({drafts.length})</div>
-                    <div className="compose-list-items">
-                        {drafts.map((draft, index) => {
-                            const subject = draft.message.split('\n')[0];
-                            const add = draft.files.reduce((acc, file) => acc + file.additions, 0);
-                            const del = draft.files.reduce((acc, file) => acc + file.deletions, 0);
-                            return (
-                                <button
-                                    key={draft.id}
-                                    className={`compose-list-item ${selectedDraft?.id === draft.id ? 'selected' : ''}`}
-                                    onClick={() => selectDraft(draft.id)}
-                                >
-                                    <div className="compose-list-index">Commit {index + 1}</div>
-                                    <div className="compose-list-subject" title={subject}>
-                                        {subject}
-                                    </div>
-                                    <div className="compose-list-meta">
-                                        <span>{draft.files.length} files</span>
-                                        <span className="stat-add">+{add}</span>
-                                        <span className="stat-del">-{del}</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </aside>
+            {modelFailover && (
+                <div className="compose-banner compose-banner-info">
+                    AI model failover active: {requestedModel || 'primary model'} switched to {usedModel || 'a fallback model'}.
+                    {composeMeta?.aiModelFailoverReason ? ` ${composeMeta.aiModelFailoverReason}` : ''}
+                </div>
+            )}
 
-                <article className="compose-detail">
-                    {selectedDraft ? (
-                        <>
-                            <div className="compose-detail-header">
-                                <h4>{selectedDraft.message.split('\n')[0]}</h4>
-                                <span className="confidence-badge">{selectedDraft.confidence}% confidence</span>
+            <div className="compose-detail-card">
+                {selectedDraft ? (
+                    <>
+                        <div className="compose-detail-top-bar">
+                            <div className="compose-detail-title-group">
+                                <span className="compose-detail-tag">Commit Proposal</span>
+                                <h3 className="compose-detail-heading">{selectedDraft.message.split('\n')[0]}</h3>
                             </div>
-
-                            <div className="compose-editor-block">
-                                <label className="section-label">Commit Message</label>
-                                <textarea
-                                    className="commit-editor-textarea"
-                                    rows={5}
-                                    value={editorMessage}
-                                    onChange={event => setEditorMessage(event.target.value)}
-                                />
-                                <div className="compose-editor-actions">
+                            <div className="compose-detail-badge-group">
+                                {selectedDraft.confidence && (
+                                    <span className="confidence-badge">{selectedDraft.confidence}% confidence</span>
+                                )}
+                                {selectedDraft.state === 'committed' ? (
+                                    <span className="status-chip chip-committed">Committed</span>
+                                ) : (
                                     <button
-                                        className="btn btn-primary btn-sm"
-                                        onClick={handleSaveMessage}
-                                        disabled={!hasMessageEdits}
-                                    >
-                                        Save Message
-                                    </button>
-                                    <button
+                                        type="button"
                                         className="btn btn-success btn-sm"
                                         onClick={handleCommitCurrent}
                                         disabled={isCommitting}
                                     >
-                                        Commit This Draft
+                                        {isCommitting ? 'Committing...' : 'Commit This Draft'}
                                     </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Commit Message Box */}
+                        <div className="compose-editor-box">
+                            <div className="compose-editor-header">
+                                <label className="section-label">Commit Message</label>
+                                <div className="compose-editor-meta">
+                                    <span className={`char-counter ${subjectLength > 72 ? 'counter-warn' : ''}`}>
+                                        {subjectLength}/72 chars
+                                    </span>
                                 </div>
                             </div>
 
-                            {(selectedDraft.rationale || selectedDraft.description || selectedDraft.impact) && (
-                                <section className="compose-text-block">
-                                    <div className="section-label">Why This Commit</div>
-                                    {selectedDraft.rationale && <p>{selectedDraft.rationale}</p>}
-                                    {!selectedDraft.rationale && selectedDraft.description && <p>{selectedDraft.description}</p>}
-                                    {selectedDraft.impact && <p className="compose-impact">{selectedDraft.impact}</p>}
-                                </section>
-                            )}
+                            {/* Conventional commit quick prefix chips */}
+                            <div className="conventional-chips">
+                                {CONVENTIONAL_TYPES.map((type) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        className="chip-btn"
+                                        onClick={() => setEditorMessage((prev) => applyTypePrefix(prev, type))}
+                                        title={`Prepend or change to "${type}:"`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
 
-                            {selectedDraft.verificationSteps && selectedDraft.verificationSteps.length > 0 && (
-                                <section className="compose-text-block">
-                                    <div className="section-label">Verification Checklist</div>
-                                    <ul className="compose-list-bullets">
-                                        {selectedDraft.verificationSteps.map((step, idx) => (
-                                            <li key={`${selectedDraft.id}-verify-${idx}`}>{step}</li>
-                                        ))}
-                                    </ul>
-                                </section>
-                            )}
+                            <textarea
+                                className="commit-editor-textarea"
+                                rows={4}
+                                value={editorMessage}
+                                onChange={(e) => setEditorMessage(e.target.value)}
+                                placeholder="Enter commit message (first line is subject, followed by blank line and body)..."
+                            />
 
-                            {selectedDraft.risks && selectedDraft.risks.length > 0 && (
-                                <section className="compose-text-block">
-                                    <div className="section-label">Risks</div>
-                                    <ul className="compose-list-bullets">
-                                        {selectedDraft.risks.map((risk, idx) => (
-                                            <li key={`${selectedDraft.id}-risk-${idx}`}>{risk}</li>
-                                        ))}
-                                    </ul>
-                                </section>
-                            )}
+                            <div className="compose-editor-footer">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleSaveMessage}
+                                    disabled={!hasMessageEdits}
+                                >
+                                    Save Message Edits
+                                </button>
+                            </div>
+                        </div>
 
-                            <section className="compose-files-block">
-                                <div className="section-label">Files In Commit ({selectedDraft.files.length})</div>
-                                <div className="compose-files-table">
-                                    {selectedDraft.files.map(file => (
-                                        <div className="compose-file-row" key={`${selectedDraft.id}-${file.path}`}>
-                                            <span className={`change-badge ${file.changeType}`}>{file.changeType[0]?.toUpperCase() || '?'}</span>
-                                            <span className="file-name" title={file.path}>{file.path}</span>
-                                            <span className="stat-add">+{file.additions}</span>
-                                            <span className="stat-del">-{file.deletions}</span>
-                                        </div>
+                        {/* Why This Commit & Rationale */}
+                        {(selectedDraft.rationale || selectedDraft.description || selectedDraft.impact) && (
+                            <div className="compose-reasoning-card">
+                                <div className="section-label">Why This Commit</div>
+                                {selectedDraft.rationale && <p className="reasoning-text">{selectedDraft.rationale}</p>}
+                                {!selectedDraft.rationale && selectedDraft.description && (
+                                    <p className="reasoning-text">{selectedDraft.description}</p>
+                                )}
+                                {selectedDraft.impact && (
+                                    <div className="compose-impact">
+                                        <strong>Impact:</strong> {selectedDraft.impact}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {selectedDraft.verificationSteps && selectedDraft.verificationSteps.length > 0 && (
+                            <div className="compose-checklist-card">
+                                <div className="section-label">Verification Checklist</div>
+                                <ul className="compose-list-bullets">
+                                    {selectedDraft.verificationSteps.map((step, idx) => (
+                                        <li key={`${selectedDraft.id}-verify-${idx}`}>{step}</li>
                                     ))}
-                                </div>
-                            </section>
-                        </>
-                    ) : (
-                        <p className="empty-hint">Select a draft to inspect details.</p>
-                    )}
-                </article>
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Embedded Diff Accordion */}
+                        <FileDiffAccordion
+                            files={selectedDraft.files}
+                            onOpenFile={handleOpenFile}
+                        />
+                    </>
+                ) : (
+                    <div className="compose-detail-empty">
+                        <p className="empty-hint">Select a draft commit from the timeline on the left to inspect its message and diffs.</p>
+                    </div>
+                )}
             </div>
         </section>
     );

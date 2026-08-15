@@ -5,6 +5,7 @@ import { FileChange, ChangeType, RepoContext } from '../../types/git';
 export class GitService {
     private git: SimpleGit;
     private workspacePath: string;
+    private repoRootResolved = false;
 
     constructor(workspacePath?: string) {
         if (workspacePath) {
@@ -22,6 +23,31 @@ export class GitService {
         this.git = simpleGit(this.workspacePath);
     }
 
+    private async ensureRepoRoot(): Promise<void> {
+        if (this.repoRootResolved) return;
+        try {
+            if (typeof this.git.revparse === 'function') {
+                const topLevel = (await this.git.revparse(['--show-toplevel'])).trim();
+                if (topLevel) {
+                    this.workspacePath = topLevel;
+                    this.git = simpleGit(topLevel);
+                }
+            }
+            this.repoRootResolved = true;
+        } catch {
+            this.repoRootResolved = true;
+        }
+    }
+
+    private toTopPathspecs(files: string[]): string[] {
+        return files.filter(Boolean).map(f => {
+            if (f === '.' || f.startsWith(':/') || f.startsWith(':(')) {
+                return f;
+            }
+            return `:/${f.replace(/^\/+/, '')}`;
+        });
+    }
+
     getWorkspacePath(): string {
         return this.workspacePath;
     }
@@ -29,6 +55,7 @@ export class GitService {
     // --- Staged / Unstaged ---
 
     async getStagedChanges(): Promise<FileChange[]> {
+        await this.ensureRepoRoot();
         const status = await this.git.status();
         const changes: FileChange[] = [];
 
@@ -48,6 +75,7 @@ export class GitService {
     }
 
     async getUnstagedChanges(): Promise<FileChange[]> {
+        await this.ensureRepoRoot();
         const status = await this.git.status();
         const changes: FileChange[] = [];
 
@@ -69,15 +97,19 @@ export class GitService {
     // --- File diffs ---
 
     async getFileDiff(filePath: string, staged: boolean): Promise<string> {
+        await this.ensureRepoRoot();
         const args = staged ? ['--cached'] : [];
-        return this.git.diff([...args, '--', filePath]);
+        const pathspec = this.toTopPathspecs([filePath])[0] || filePath;
+        return this.git.diff([...args, '--', pathspec]);
     }
 
     async getStagedDiff(): Promise<string> {
+        await this.ensureRepoRoot();
         return this.git.diff(['--cached', '--patch', '--no-color']);
     }
 
     async showFile(refAndPath: string): Promise<string> {
+        await this.ensureRepoRoot();
         try {
             return await this.git.show([refAndPath]);
         } catch {
@@ -88,20 +120,28 @@ export class GitService {
     // --- Stage / Unstage ---
 
     async stageFiles(files: string[]): Promise<void> {
-        await this.git.add(files);
+        await this.ensureRepoRoot();
+        const pathspecs = this.toTopPathspecs(files);
+        if (pathspecs.length === 0) return;
+        await this.git.add(pathspecs);
     }
 
     async unstageFiles(files: string[]): Promise<void> {
-        await this.git.reset(['HEAD', '--', ...files]);
+        await this.ensureRepoRoot();
+        const pathspecs = this.toTopPathspecs(files);
+        if (pathspecs.length === 0) return;
+        await this.git.reset(['HEAD', '--', ...pathspecs]);
     }
 
     async unstageAll(): Promise<void> {
+        await this.ensureRepoRoot();
         await this.git.reset(['HEAD']);
     }
 
     // --- Discard Changes ---
 
     async discardFiles(files: string[]): Promise<void> {
+        await this.ensureRepoRoot();
         const normalizedFiles = files.filter(Boolean);
         if (normalizedFiles.length === 0) return;
 
@@ -120,7 +160,7 @@ export class GitService {
         }
 
         if (tracked.length > 0) {
-            await this.git.checkout(['--', ...tracked]);
+            await this.git.checkout(['--', ...this.toTopPathspecs(tracked)]);
         }
         if (untracked.length > 0) {
             await this.git.raw(['clean', '-f', '-d', '--', ...untracked]);
@@ -128,6 +168,7 @@ export class GitService {
     }
 
     async discardAll(): Promise<void> {
+        await this.ensureRepoRoot();
         await this.git.checkout(['--', '.']);
         await this.git.raw(['clean', '-f', '-d']);
     }
@@ -135,6 +176,7 @@ export class GitService {
     // --- Commit ---
 
     async createCommit(message: string, files?: string[]): Promise<void> {
+        await this.ensureRepoRoot();
         const normalizedFiles = (files || []).filter(Boolean);
         if (normalizedFiles.length === 0) {
             await this.git.commit(message);
@@ -144,7 +186,8 @@ export class GitService {
         // Use raw to ensure correct `--` pathspec handling and avoid surprising behaviors.
         // This commits only the currently-staged changes for the provided paths, leaving other
         // staged changes intact (critical for composing multiple atomic commits).
-        await this.git.raw(['commit', '-m', message, '--', ...normalizedFiles]);
+        const pathspecs = this.toTopPathspecs(normalizedFiles);
+        await this.git.raw(['commit', '-m', message, '--', ...pathspecs]);
     }
 
     async getCurrentHead(): Promise<string> {

@@ -1406,3 +1406,814 @@ body {
   background: #da3633;
 }
 
+/* ==========================================================================
+   Studio Two-Column Layout (Panel Mode)
+   ========================================================================== */
+
+.git-composer.gc-panel-mode {
+  height: 100vh;
+  padding: 16px 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.gc-panel-mode .gc-header {
+  padding: 0 0 12px 0;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
+}
+
+.gc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gc-header-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--gc-accent, #0e639c);
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.gc-studio-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 420px) minmax(0, 1fr);
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.gc-studio-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  min-height: 0;
+}
+
+.gc-studio-main {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 18px 22px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Auto-Compose Action Card */
+.gc-compose-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.gc-auto-compose-btn {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 10px 16px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%) !important;
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.gc-auto-compose-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1084d8 0%, #0066b0 100%) !important;
+  box-shadow: 0 4px 14px rgba(0, 120, 212, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.gc-compose-hint {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  text-align: center;
+}
+
+.gc-spinner-sm {
+  width: 14px !important;
+  height: 14px !important;
+  border-width: 2px !important;
+}
+
+/* ==========================================================================
+   Draft Timeline / Stepper
+   ========================================================================== */
+
+.gc-timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--vscode-sideBar-background, #18181b);
+  border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.gc-timeline-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 8px;
+}
+
+.gc-timeline-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gc-timeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #f8fafc);
+}
+
+.gc-timeline-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--vscode-foreground);
+}
+
+.gc-timeline-subtitle {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+}
+
+.gc-timeline-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gc-timeline-item {
+  display: flex;
+  gap: 12px;
+  cursor: pointer;
+  position: relative;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  padding: 4px;
+}
+
+.gc-timeline-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gc-timeline-item.selected .gc-timeline-card {
+  border-color: var(--gc-accent, #0078d4);
+  background: rgba(0, 120, 212, 0.08);
+  box-shadow: 0 0 0 1px var(--gc-accent, #0078d4);
+}
+
+.gc-timeline-node-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+
+.gc-timeline-node {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+
+.node-pending {
+  background: #1e293b;
+  border: 2px solid #475569;
+  color: #94a3b8;
+}
+
+.node-selected {
+  background: var(--gc-accent, #0078d4);
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 120, 212, 0.6);
+}
+
+.node-committed {
+  background: var(--gc-success, #2ea043);
+  border: 2px solid #2ea043;
+  color: #ffffff;
+}
+
+.gc-timeline-connector {
+  width: 2px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.12);
+  min-height: 36px;
+  margin: 4px 0;
+}
+
+.gc-timeline-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+}
+
+.gc-timeline-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.gc-timeline-step-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+}
+
+.status-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.chip-draft {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.chip-committed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.gc-timeline-subject {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vscode-foreground, #f8fafc);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gc-timeline-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  margin-top: 2px;
+}
+
+.gc-meta-files {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gc-timeline-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================================
+   Working Changes Overview (Pre-Compose Right Pane)
+   ========================================================================== */
+
+.gc-working-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gc-overview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: linear-gradient(135deg, rgba(14, 99, 156, 0.2) 0%, rgba(30, 41, 59, 0.4) 100%);
+  border: 1px solid rgba(14, 99, 156, 0.4);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.gc-overview-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-overview-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #38bdf8;
+  letter-spacing: 0.06em;
+}
+
+.gc-overview-banner h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #f8fafc);
+}
+
+.gc-overview-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #cbd5e1);
+}
+
+.gc-banner-btn {
+  white-space: nowrap;
+  font-size: 12px !important;
+  padding: 8px 16px !important;
+}
+
+.gc-overview-stats-bar {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.gc-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.gc-stat-label {
+  color: var(--vscode-descriptionForeground, #94a3b8);
+}
+
+.gc-stat-val {
+  font-weight: 600;
+}
+
+/* Empty State */
+.gc-overview-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+  max-width: 540px;
+  margin: 40px auto;
+}
+
+.gc-overview-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-descriptionForeground, #64748b);
+  margin-bottom: 16px;
+}
+
+.gc-overview-empty-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.gc-overview-empty-desc {
+  margin: 0 0 24px 0;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  line-height: 1.5;
+}
+
+.gc-overview-unstaged-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: left;
+}
+
+.gc-unstaged-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gc-unstaged-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-unstaged-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gc-unstaged-name {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gc-unstaged-more {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  text-align: center;
+  padding-top: 4px;
+}
+
+.gc-overview-clean-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   File Diff Accordion
+   ========================================================================== */
+
+.gc-diff-accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.gc-diff-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gc-diff-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #f8fafc);
+}
+
+.btn-text-action {
+  background: none;
+  border: none;
+  color: var(--vscode-textLink-foreground, #38bdf8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-text-action:hover {
+  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gc-diff-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gc-diff-file-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background, #18181b);
+}
+
+.gc-diff-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s ease;
+}
+
+.gc-diff-file-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gc-diff-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+}
+
+.gc-file-icon {
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  flex-shrink: 0;
+}
+
+.gc-diff-file-path {
+  flex: 1;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--vscode-foreground, #f1f5f9);
+}
+
+.gc-change-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.badge-modified {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+}
+
+.badge-added {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.badge-deleted {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.gc-diff-stat-pills {
+  display: flex;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.gc-diff-file-body {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--vscode-editor-background, #1e1e1e);
+  overflow-x: auto;
+}
+
+.gc-diff-table {
+  font-family: var(--vscode-editor-font-family, "Consolas", "Courier New", monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  width: 100%;
+}
+
+.gc-diff-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 100%;
+}
+
+.gc-diff-num {
+  width: 38px;
+  padding: 0 6px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground, #52525b);
+  user-select: none;
+  font-size: 11px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.gc-diff-line-content {
+  flex: 1;
+  padding: 0 10px;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.gc-diff-add {
+  background: rgba(46, 160, 67, 0.18);
+  color: #e6edf3;
+}
+
+.gc-diff-del {
+  background: rgba(248, 81, 73, 0.18);
+  color: #e6edf3;
+}
+
+.gc-diff-hunk {
+  background: rgba(56, 139, 253, 0.12);
+  color: #79c0ff;
+  font-weight: 500;
+}
+
+.gc-diff-meta {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.gc-diff-binary {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  text-align: center;
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Conventional Commit Chips & Editor Polish
+   ========================================================================== */
+
+.compose-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compose-detail-top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.compose-detail-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compose-detail-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #38bdf8;
+  letter-spacing: 0.06em;
+}
+
+.compose-detail-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #f8fafc);
+}
+
+.compose-detail-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.compose-editor-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.compose-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.char-counter {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+}
+
+.counter-warn {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.conventional-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.chip-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--vscode-foreground, #cbd5e1);
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip-btn:hover {
+  background: var(--gc-accent, #0078d4);
+  color: #ffffff;
+  border-color: var(--gc-accent, #0078d4);
+}
+
+.compose-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.compose-reasoning-card,
+.compose-checklist-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.reasoning-text {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vscode-foreground, #cbd5e1);
+}
+
+.compose-impact {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #38bdf8;
+}
+
+.compose-detail-empty {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .gc-studio-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+

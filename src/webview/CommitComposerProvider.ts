@@ -195,6 +195,13 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         return this._messageRouter;
     }
 
+    private setWorkspacePath(newPath: string): void {
+        if (this._workspacePath !== newPath) {
+            this._workspacePath = newPath;
+            this.resetWorkspaceBindings();
+        }
+    }
+
     private async ensureWorkspacePath(promptIfMissing: boolean, forcePrompt: boolean = false): Promise<string | undefined> {
         if (this._workspacePath && !forcePrompt) {
             return this._workspacePath;
@@ -215,7 +222,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
         }
 
         if (gitCandidates.length === 1) {
-            this._workspacePath = gitCandidates[0];
+            this.setWorkspacePath(gitCandidates[0]);
             return this._workspacePath;
         }
 
@@ -233,7 +240,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             );
 
             if (selected?.workspacePath) {
-                this._workspacePath = selected.workspacePath;
+                this.setWorkspacePath(selected.workspacePath);
                 return this._workspacePath;
             }
         }
@@ -265,7 +272,7 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
             return this.ensureWorkspacePath(true);
         }
 
-        this._workspacePath = selectedPath;
+        this.setWorkspacePath(selectedPath);
         return this._workspacePath;
     }
 

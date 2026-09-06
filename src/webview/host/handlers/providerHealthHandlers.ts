@@ -1,11 +1,13 @@
 import { ComposeProviderConfig } from '../../../core/orchestrator';
 import {
     loadKeys,
+    loadLocalEndpoints,
     loadLocalModels,
     loadOllamaModels,
     removeKey,
     resetKeys,
     saveKey,
+    saveLocalEndpoints,
     saveProviderPreference,
     testProviderConnection,
 } from '../../../features/provider-health/providerHealthSlice';
@@ -67,6 +69,15 @@ export function createProviderHealthHandlers(deps: ProviderHealthHandlerDeps): W
             String(message.provider || ''),
             String(message.model || ''),
             String(message.baseUrl || ''),
+            webview
+        ),
+        saveLocalEndpoints: async (message, webview) => saveLocalEndpoints(
+            deps,
+            Array.isArray(message.endpoints) ? message.endpoints : [],
+            webview
+        ),
+        loadLocalEndpoints: async (_message, webview) => loadLocalEndpoints(
+            deps,
             webview
         ),
     };

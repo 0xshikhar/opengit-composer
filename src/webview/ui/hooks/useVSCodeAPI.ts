@@ -6,6 +6,7 @@ import {
     WebviewToHostCommand,
     WebviewToHostMessage,
 } from '../../../types/messages';
+import { DEFAULT_LOCAL_ENDPOINTS, LocalEndpointConfig } from '../../../utils/constant';
 
 interface VSCodeAPI {
     postMessage: (msg: WebviewToHostMessage) => void;
@@ -91,6 +92,24 @@ export function useVSCodeAPI() {
                 setDiagnostics(payload.diagnostics);
             }
 
+            if (payload.command === 'localEndpointsLoaded' && Array.isArray(payload.endpoints)) {
+                const custom = payload.endpoints as LocalEndpointConfig[];
+                const merged = [
+                    ...DEFAULT_LOCAL_ENDPOINTS,
+                    ...custom.filter(c => !DEFAULT_LOCAL_ENDPOINTS.some(d => d.id === c.id))
+                ];
+                useCommitStore.getState().setLocalEndpoints(merged);
+            }
+
+            if (payload.command === 'dataLoaded' && Array.isArray(payload.data?.customLocalEndpoints)) {
+                const custom = payload.data.customLocalEndpoints as LocalEndpointConfig[];
+                const merged = [
+                    ...DEFAULT_LOCAL_ENDPOINTS,
+                    ...custom.filter(c => !DEFAULT_LOCAL_ENDPOINTS.some(d => d.id === c.id))
+                ];
+                useCommitStore.getState().setLocalEndpoints(merged);
+            }
+
             handler(payload);
         };
         window.addEventListener('message', listener);
@@ -118,5 +137,10 @@ export function useVSCodeAPI() {
         postMessage('saveProviderPreference', { provider, model, baseUrl });
     }, [postMessage]);
 
-    return { postMessage, onMessage, api, loadKeys, saveKey, removeKey, resetKeys, saveProviderPreference };
+    const saveLocalEndpoints = useCallback((endpoints: LocalEndpointConfig[]) => {
+        const customOnly = endpoints.filter(e => !e.isPreset);
+        postMessage('saveLocalEndpoints', { endpoints: customOnly });
+    }, [postMessage]);
+
+    return { postMessage, onMessage, api, loadKeys, saveKey, removeKey, resetKeys, saveProviderPreference, saveLocalEndpoints };
 }

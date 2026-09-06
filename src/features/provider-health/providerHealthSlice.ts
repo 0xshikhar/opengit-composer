@@ -7,6 +7,7 @@ import { ConfigLoader } from '../../core/configLoader';
 import { KeyManager } from '../../core/keyManager';
 import { ComposeProviderConfig } from '../../core/orchestrator';
 import { isLocalProvider, resolveProviderHostAndModel } from '../../utils/constant';
+import { Logger } from '../../utils/logger';
 
 export interface ProviderHealthSliceDeps {
     keyManager?: KeyManager;
@@ -194,6 +195,52 @@ export async function saveProviderPreference(
             command: 'providerPreferenceSaved',
             success: false,
             error: message,
+        });
+    }
+}
+
+export async function saveLocalEndpoints(
+    deps: ProviderHealthSliceDeps,
+    endpoints: any[],
+    webview: vscode.Webview
+): Promise<void> {
+    try {
+        void deps;
+        const vscodeApi = require('vscode');
+        const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
+        await vsConfig.update('customLocalEndpoints', endpoints, true);
+        await webview.postMessage({
+            command: 'localEndpointsLoaded',
+            endpoints,
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error('Failed to save local endpoints', error);
+        await webview.postMessage({
+            command: 'localEndpointsLoaded',
+            endpoints,
+            error: message,
+        });
+    }
+}
+
+export async function loadLocalEndpoints(
+    deps: ProviderHealthSliceDeps,
+    webview: vscode.Webview
+): Promise<void> {
+    try {
+        void deps;
+        const vscodeApi = require('vscode');
+        const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
+        const endpoints = (vsConfig.get('customLocalEndpoints') as any[] | undefined) || [];
+        await webview.postMessage({
+            command: 'localEndpointsLoaded',
+            endpoints,
+        });
+    } catch {
+        await webview.postMessage({
+            command: 'localEndpointsLoaded',
+            endpoints: [],
         });
     }
 }

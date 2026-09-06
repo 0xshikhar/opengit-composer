@@ -47,6 +47,7 @@ export async function loadComposeData(
             unstaged,
             providerConfig,
             privacyPreview: privacy.preview,
+            customLocalEndpoints: config.customLocalEndpoints || [],
             resetSession: options.resetSession ?? false,
         },
     });

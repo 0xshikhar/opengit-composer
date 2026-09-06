@@ -12,6 +12,7 @@ import StatusBar from './components/StatusBar';
 import InlineCommitBox from './components/InlineCommitBox';
 import DraftTimeline from './components/DraftTimeline';
 import WorkingChangesOverview from './components/WorkingChangesOverview';
+import AIProviderSettingsModal from './components/AIProviderSettingsModal';
 import './index.css';
 
 type BootstrapPayload = {
@@ -363,6 +364,9 @@ export default function App() {
                     )}
                 </>
             )}
+
+            {/* AI Provider & Models Settings Modal */}
+            <AIProviderSettingsModal />
         </div>
     );
 }

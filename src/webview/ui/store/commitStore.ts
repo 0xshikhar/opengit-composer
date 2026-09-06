@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ComposerErrorAction, ComposerErrorCode, ComposerErrorSeverity } from '../../../types/messages';
+import { DEFAULT_LOCAL_ENDPOINTS, LocalEndpointConfig } from '../../../utils/constant';
 
 // Types duplicated for webview context (no vscode imports)
 export interface FileChange {
@@ -161,6 +162,13 @@ interface CommitStoreState {
     // Ollama models
     ollamaModels: string[];
 
+    // Local Endpoints (TurboFieldfare, LM Studio, Ollama, Custom)
+    localEndpoints: LocalEndpointConfig[];
+    activeLocalEndpointId: string | null;
+
+    // Settings Modal
+    isSettingsModalOpen: boolean;
+
     // View mode
     activeView: 'tree' | 'diff' | 'editor' | 'compose';
 
@@ -193,6 +201,9 @@ interface CommitStoreState {
     setSavedKeys: (provider: string, keys: StoredKeyDisplay[]) => void;
     setShowKeyInput: (show: boolean) => void;
     setOllamaModels: (models: string[]) => void;
+    setLocalEndpoints: (endpoints: LocalEndpointConfig[]) => void;
+    setActiveLocalEndpointId: (id: string | null) => void;
+    setIsSettingsModalOpen: (open: boolean) => void;
     setPrivacyPreview: (preview: PrivacyPreview | null) => void;
     setConnectionTest: (result: ConnectionTestResult | null) => void;
     setDiagnostics: (diagnostics: ProviderDiagnostics | null) => void;
@@ -250,6 +261,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
     savedKeys: {},
     showKeyInput: false,
     ollamaModels: [],
+    localEndpoints: DEFAULT_LOCAL_ENDPOINTS,
+    activeLocalEndpointId: null,
+    isSettingsModalOpen: false,
     activeView: 'tree',
 
     // Setters
@@ -308,6 +322,9 @@ export const useCommitStore = create<CommitStoreState>((set, get) => ({
         })),
     setShowKeyInput: (show) => set({ showKeyInput: show }),
     setOllamaModels: (models) => set({ ollamaModels: models }),
+    setLocalEndpoints: (endpoints) => set({ localEndpoints: endpoints }),
+    setActiveLocalEndpointId: (id) => set({ activeLocalEndpointId: id }),
+    setIsSettingsModalOpen: (open) => set({ isSettingsModalOpen: open }),
     setPrivacyPreview: (preview) => set({ privacyPreview: preview }),
     setConnectionTest: (result) => set({ connectionTest: result }),
     setDiagnostics: (diagnostics) => set({ diagnostics }),

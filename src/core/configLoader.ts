@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../utils/logger';
-import { isLocalProvider } from '../utils/constant';
+import { isLocalProvider, LocalEndpointConfig } from '../utils/constant';
 
 export interface ComposerConfig {
     provider: string;
@@ -16,6 +16,7 @@ export interface ComposerConfig {
     recentCommitCount: number;
     ollamaHost: string;
     lmStudioHost: string;
+    customLocalEndpoints: LocalEndpointConfig[];
     excludePatterns: string[];
     redactPatterns: string[];
 }
@@ -32,6 +33,7 @@ const DEFAULT_CONFIG: ComposerConfig = {
     recentCommitCount: 10,
     ollamaHost: 'http://localhost:11434',
     lmStudioHost: 'http://localhost:1234/v1',
+    customLocalEndpoints: [],
     excludePatterns: [],
     redactPatterns: [],
 };
@@ -131,6 +133,11 @@ export class ConfigLoader {
             const lmStudioHost = vsConfig.get('lmStudioHost') as string | undefined;
             if (lmStudioHost) this.config.lmStudioHost = lmStudioHost;
 
+            const customLocalEndpoints = vsConfig.get('customLocalEndpoints') as LocalEndpointConfig[] | undefined;
+            if (Array.isArray(customLocalEndpoints)) {
+                this.config.customLocalEndpoints = customLocalEndpoints;
+            }
+
             const commitFormat = vsConfig.get('commitFormat') as string | undefined;
             if (commitFormat) this.config.commitFormat = commitFormat as ComposerConfig['commitFormat'];
 
@@ -179,6 +186,7 @@ export class ConfigLoader {
             if (fileConfig.recentCommitCount) this.config.recentCommitCount = fileConfig.recentCommitCount;
             if (fileConfig.ollamaHost) this.config.ollamaHost = fileConfig.ollamaHost;
             if (fileConfig.lmStudioHost) this.config.lmStudioHost = fileConfig.lmStudioHost;
+            if (Array.isArray(fileConfig.customLocalEndpoints)) this.config.customLocalEndpoints = fileConfig.customLocalEndpoints;
             if (Array.isArray(fileConfig.excludePatterns)) this.config.excludePatterns = fileConfig.excludePatterns;
             if (Array.isArray(fileConfig.redactPatterns)) this.config.redactPatterns = fileConfig.redactPatterns;
 

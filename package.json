@@ -127,6 +127,23 @@
           "default": "http://localhost:1234/v1",
           "description": "LM Studio server URL for local model inference"
         },
+        "commitComposer.customLocalEndpoints": {
+          "type": "array",
+          "default": [],
+          "description": "Custom local AI endpoints (e.g. TurboFieldfare, vLLM, llama.cpp, custom OpenAI-compatible or Ollama servers)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "providerType": { "type": "string", "enum": ["lmstudio", "ollama"] },
+              "baseUrl": { "type": "string" },
+              "model": { "type": "string" },
+              "apiKey": { "type": "string" }
+            },
+            "required": ["id", "name", "baseUrl"]
+          }
+        },
         "commitComposer.commitFormat": {
           "type": "string",
           "enum": [

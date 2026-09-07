@@ -29,7 +29,9 @@ export type WebviewToHostCommand =
     | 'discardFiles'
     | 'discardAll'
     | 'commitDirect'
-    | 'generateQuickCommit';
+    | 'generateQuickCommit'
+    | 'saveLocalEndpoints'
+    | 'loadLocalEndpoints';
 
 export interface ComposerWarningPayload {
     code: 'STAGED_SNAPSHOT_STALE';
@@ -61,7 +63,8 @@ export type HostToWebviewCommand =
     | 'privacyPreviewLoaded'
     | 'diagnostics'
     | 'quickCommitMessageGenerated'
-    | 'quickCommitGenerating';
+    | 'quickCommitGenerating'
+    | 'localEndpointsLoaded';
 
 export type ComposerErrorSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -150,6 +153,8 @@ const WEBVIEW_COMMANDS = new Set<WebviewToHostCommand>([
     'discardAll',
     'commitDirect',
     'generateQuickCommit',
+    'saveLocalEndpoints',
+    'loadLocalEndpoints',
 ]);
 
 const HOST_COMMANDS = new Set<HostToWebviewCommand>([
@@ -173,6 +178,7 @@ const HOST_COMMANDS = new Set<HostToWebviewCommand>([
     'diagnostics',
     'quickCommitMessageGenerated',
     'quickCommitGenerating',
+    'localEndpointsLoaded',
 ]);
 
 export function isWebviewToHostMessage(message: unknown): message is WebviewToHostMessage {

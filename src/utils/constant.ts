@@ -17,11 +17,61 @@ export type ProviderName =
     | 'kimi'
     | 'ollama';
 
+export interface LocalEndpointConfig {
+    id: string;
+    name: string;
+    providerType: 'lmstudio' | 'ollama';
+    baseUrl: string;
+    model?: string;
+    apiKey?: string;
+    isPreset?: boolean;
+}
+
+export const DEFAULT_LOCAL_ENDPOINTS: LocalEndpointConfig[] = [
+    {
+        id: 'turbofieldfare',
+        name: 'TurboFieldfare',
+        providerType: 'lmstudio',
+        baseUrl: 'http://127.0.0.1:8080/v1',
+        model: '',
+        isPreset: true,
+    },
+    {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        providerType: 'lmstudio',
+        baseUrl: 'http://localhost:1234/v1',
+        model: '',
+        isPreset: true,
+    },
+    {
+        id: 'ollama',
+        name: 'Ollama',
+        providerType: 'ollama',
+        baseUrl: 'http://localhost:11434',
+        model: '',
+        isPreset: true,
+    },
+    {
+        id: 'vllm',
+        name: 'vLLM / llama.cpp',
+        providerType: 'lmstudio',
+        baseUrl: 'http://localhost:8000/v1',
+        model: '',
+        isPreset: true,
+    },
+];
+
 export function isLocalProvider(providerId: string): boolean {
-    return PROVIDERS.some(provider =>
-        provider.id === providerId &&
-        provider.requiresApiKey === false &&
-        provider.baseUrl === 'baseUrl'
+    return (
+        providerId === 'lmstudio' ||
+        providerId === 'ollama' ||
+        PROVIDERS.some(
+            provider =>
+                provider.id === providerId &&
+                provider.requiresApiKey === false &&
+                provider.baseUrl === 'baseUrl'
+        )
     );
 }
 

@@ -100,9 +100,17 @@ export class LMStudioProvider extends AIProvider {
         }
 
         if (!models.some(model => modelIdsMatch(selectedModel, model))) {
+            if (models.length === 1 && models[0]) {
+                Logger.info('LMStudioProvider: Dedicated local model loaded on server, using active server model', {
+                    requested: selectedModel,
+                    active: models[0],
+                });
+                return { available: true, models };
+            }
+
             return {
                 available: false,
-                reason: `Model "${selectedModel}" is not available on the configured LM Studio server.`,
+                reason: `Model "${selectedModel}" is not available on the configured local server. Active model is "${models[0]}".`,
                 models,
             };
         }
@@ -232,18 +240,29 @@ export class LMStudioProvider extends AIProvider {
 
     private async resolveModel(): Promise<string> {
         const explicit = (this.config.model || '').trim();
+        const models = await this.getAvailableModels();
+        const active = models[0]?.trim();
+
         if (explicit) {
+            if (models.some(m => modelIdsMatch(explicit, m))) {
+                return explicit;
+            }
+            if (models.length === 1 && active) {
+                Logger.info('LMStudioProvider: Using active local server model instead of mismatching explicit path', {
+                    explicit,
+                    active,
+                });
+                return active;
+            }
             return explicit;
         }
 
-        const models = await this.getAvailableModels();
-        const active = models[0]?.trim();
         if (active) {
             Logger.info('LMStudioProvider: Using active local model', { model: active });
             return active;
         }
 
-        throw new Error('No chat-capable LM Studio model is currently loaded. Start a chat model in LM Studio or select one in the composer.');
+        throw new Error('No chat-capable local model is currently loaded. Start a chat model in LM Studio / local server or select one in the composer.');
     }
 
     private normalizeBaseUrl(baseUrl: string): string {

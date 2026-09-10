@@ -261,3 +261,33 @@ export function resolveProviderHostAndModel(
         baseUrl,
     };
 }
+
+export function normalizeModelId(model: string): string {
+    return model
+        .trim()
+        .replace(/^publishers\/[^/]+\/models\//, '')
+        .replace(/^models\//, '')
+        .replace(/-(\d+)\.0+(?=-|$)/g, '-$1'); // Normalize version numbers like 3.0 -> 3
+}
+
+export function modelIdsMatch(selectedModel: string, availableModel: string): boolean {
+    const selected = normalizeModelId(selectedModel);
+    const available = normalizeModelId(availableModel);
+    if (available === selected || available.endsWith(`/${selected}`) || available.endsWith(selected)) {
+        return true;
+    }
+
+    // Handle file paths or extensions (e.g. scratch/gemma4.gturbo -> gemma4)
+    const cleanName = (s: string) => s.split('/').pop()?.replace(/\.[^/.]+$/, '').replace(/[-_.]/g, '').toLowerCase() || '';
+    const cleanSelected = cleanName(selected);
+    const cleanAvailable = cleanName(available);
+
+    if (cleanSelected && cleanAvailable) {
+        if (cleanSelected === cleanAvailable || cleanAvailable.includes(cleanSelected) || cleanSelected.includes(cleanAvailable)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+

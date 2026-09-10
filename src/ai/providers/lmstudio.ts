@@ -244,9 +244,24 @@ export class LMStudioProvider extends AIProvider {
         const active = models[0]?.trim();
 
         if (explicit) {
-            if (models.some(m => modelIdsMatch(explicit, m))) {
-                return explicit;
+            // 1. Direct exact match with server model ID
+            const exact = models.find(m => m.toLowerCase() === explicit.toLowerCase());
+            if (exact) {
+                return exact;
             }
+
+            // 2. Fuzzy match (e.g. file path "scratch/gemma4.gturbo" or prefix/suffix)
+            // CRITICAL: Always return the canonical model ID from the server, NEVER the user's alias or file path!
+            const matched = models.find(m => modelIdsMatch(explicit, m));
+            if (matched) {
+                Logger.info('LMStudioProvider: Resolved explicit model alias/path to canonical server model ID', {
+                    explicit,
+                    canonical: matched,
+                });
+                return matched;
+            }
+
+            // 3. Dedicated single-model server (e.g. TurboFieldfare, llama.cpp, vLLM running a single model)
             if (models.length === 1 && active) {
                 Logger.info('LMStudioProvider: Using active local server model instead of mismatching explicit path', {
                     explicit,
@@ -254,6 +269,17 @@ export class LMStudioProvider extends AIProvider {
                 });
                 return active;
             }
+
+            // 4. If explicit looks like a file path or model file extension, fallback to active model if available
+            const isFilePath = /\.(gturbo|gguf|bin|safetensors)$/i.test(explicit) || explicit.includes('/') || explicit.includes('\\');
+            if (isFilePath && active) {
+                Logger.info('LMStudioProvider: Explicit model is a file path, falling back to active server model', {
+                    explicit,
+                    active,
+                });
+                return active;
+            }
+
             return explicit;
         }
 

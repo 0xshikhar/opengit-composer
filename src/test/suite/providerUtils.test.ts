@@ -70,4 +70,30 @@ suite('Provider Utils Test Suite', () => {
             /Google response blocked: SAFETY/
         );
     });
+
+    test('should match file paths to canonical server model ids', () => {
+        const { modelIdsMatch, extractModelIds } = require('../../ai/providers/providerUtils');
+        
+        // Exact and fuzzy match tests
+        assert.strictEqual(modelIdsMatch('scratch/gemma4.gturbo', 'gemma-4-26b-a4b-it'), true);
+        assert.strictEqual(modelIdsMatch('gemma4', 'gemma-4-26b-a4b-it'), true);
+        assert.strictEqual(modelIdsMatch('llama3', 'meta-llama-3-8b-instruct'), true);
+        assert.strictEqual(modelIdsMatch('models/mistral.gguf', 'mistral-7b-instruct-v0.2'), true);
+        assert.strictEqual(modelIdsMatch('scratch/gemma4.gturbo', 'qwen-2.5-coder'), false);
+
+        // Test extractModelIds on TurboFieldfare response format
+        const turboPayload = {
+            object: 'list',
+            data: [
+                {
+                    object: 'model',
+                    id: 'gemma-4-26b-a4b-it',
+                    owned_by: 'turbofieldfare',
+                    created: 0
+                }
+            ]
+        };
+        const extracted = extractModelIds(turboPayload);
+        assert.deepStrictEqual(extracted, ['gemma-4-26b-a4b-it']);
+    });
 });

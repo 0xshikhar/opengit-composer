@@ -32,21 +32,25 @@ export default function AIControls() {
     // Find if the current baseUrl matches one of our local endpoint presets or custom endpoints
     const matchedLocalEndpoint = isLocal
         ? localEndpoints.find(
-              (ep) =>
-                  ep.baseUrl === providerConfig.baseUrl ||
-                  ep.providerType === providerConfig.provider
-          )
+            (ep) =>
+                ep.baseUrl === providerConfig.baseUrl ||
+                ep.providerType === providerConfig.provider
+        )
         : null;
 
     const displayProviderName = isLocal
         ? matchedLocalEndpoint?.name || (providerConfig.provider === 'lmstudio' ? 'LM Studio' : 'Ollama')
         : getProviderDisplayName(providerConfig.provider);
 
+    const rawModel = providerConfig.model || '';
+    const isModelFilePath = /\.(gturbo|gguf|bin|safetensors)$/i.test(rawModel) || rawModel.includes('/') || rawModel.includes('\\');
+
     const displayModelName =
-        providerConfig.model ||
-        (isLocal
-            ? matchedLocalEndpoint?.model || (ollamaModels[0] ? `Active (${ollamaModels[0]})` : 'Active model')
-            : 'Default model');
+        (!isLocal || !isModelFilePath) && rawModel
+            ? rawModel
+            : (isLocal
+                ? (ollamaModels[0] ? `Active (${ollamaModels[0]})` : (matchedLocalEndpoint?.model && !isModelFilePath ? matchedLocalEndpoint.model : 'Active model'))
+                : 'Default model');
 
     const handleTestConnection = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -56,6 +60,8 @@ export default function AIControls() {
     };
 
     const isTestMatching = connectionTest && connectionTest.provider === providerConfig.provider;
+    const isConnOk = isTestMatching && connectionTest.available && connectionTest.modelAvailable;
+    const isConnFailed = isTestMatching && (!connectionTest.available || !connectionTest.modelAvailable);
 
     return (
         <div className="gc-provider-compact-bar">
@@ -87,14 +93,14 @@ export default function AIControls() {
             {/* Right: Actions Group (Test Connection Icon + Settings Icon) */}
             <div className="gc-provider-actions-group">
                 <button
-                    className={`btn-icon gc-test-conn-icon-btn ${
+                    className={`gc-test-conn-icon-btn ${
                         testingConnection
                             ? 'testing'
-                            : isTestMatching
-                            ? connectionTest.available
+                            : isConnOk
                                 ? 'success'
-                                : 'error'
-                            : ''
+                                : isConnFailed
+                                    ? 'error'
+                                    : ''
                     }`}
                     type="button"
                     onClick={handleTestConnection}
@@ -103,19 +109,17 @@ export default function AIControls() {
                         testingConnection
                             ? 'Testing connection...'
                             : isTestMatching
-                            ? connectionTest.message
-                            : 'Test connection to provider'
+                                ? connectionTest.message
+                                : 'Test connection to provider'
                     }
                     aria-label="Test connection to provider"
                 >
                     {testingConnection ? (
                         <RotateCw size={14} className="gc-spin" />
-                    ) : isTestMatching ? (
-                        connectionTest.available ? (
-                            <Check size={14} className="text-success" />
-                        ) : (
-                            <AlertCircle size={14} className="text-error" />
-                        )
+                    ) : isConnOk ? (
+                        <Check size={14} />
+                    ) : isConnFailed ? (
+                        <AlertCircle size={14} />
                     ) : (
                         <Radio size={14} />
                     )}

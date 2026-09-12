@@ -9,8 +9,8 @@
     <a href="https://opengit.shikhar.xyz/">
       <img src="https://img.shields.io/badge/Website-opengit.shikhar.xyz-007ACC?style=flat&logo=googlechrome&logoColor=white" alt="Official Website">
     </a>
-    <a href="https://marketplace.visualstudio.com/items?itemName=0xshikhar.opengit-composer">
-      <img src="https://img.shields.io/visual-studio-marketplace/v/0xshikhar.opengit-composer?color=007ACC&label=VS%20Code%20Marketplace&logo=visualstudiocode" alt="VS Code Marketplace">
+    <a href="https://marketplace.visualstudio.com/items?itemName=0xShikhar.opengit-composer">
+      <img src="https://img.shields.io/visual-studio-marketplace/v/0xShikhar.opengit-composer?color=007ACC&label=VS%20Code%20Marketplace&logo=visualstudiocode" alt="VS Code Marketplace">
     </a>
     <a href="https://open-vsx.org/extension/0xshikhar/opengit-composer">
       <img src="https://img.shields.io/badge/Open--VSX-v3.0.1-blue?logo=eclipseide" alt="Open VSX Marketplace">
@@ -18,7 +18,7 @@
     <a href="https://github.com/0xshikhar/opengit-composer/releases">
       <img src="https://img.shields.io/github/v/release/0xshikhar/opengit-composer?color=2ea44f&label=Release" alt="GitHub Release">
     </a>
-    <a href="https://github.com/0xshikhar/opengit-composer/blob/main/LICENSE">
+    <a href="https://github.com/0xshikhar/opengit-composer/blob/master/LICENSE">
       <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License: GPL-3.0">
     </a>
   </p>
@@ -40,7 +40,7 @@ Stop creating messy monolithic commits like `git commit -m "fix stuff and update
 Bring your own API keys for top cloud models (**OpenAI, Anthropic Claude, Google Gemini, Groq, Kimi**), or run **100% offline & free** using local models with **Ollama** or **LM Studio**.
 
 <p align="center">
-  <img src="media/composer-response.png" alt="OpenGit Composer in action" width="780">
+  <img src="https://raw.githubusercontent.com/0xshikhar/opengit-composer/master/media/composer-preview.png" alt="OpenGit Composer in action" width="780">
 </p>
 
 ---

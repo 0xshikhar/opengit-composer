@@ -1,14 +1,14 @@
 {
   "name": "opengit-composer",
   "displayName": "OpenGit Composer",
-  "description": "AI-powered Git commit composer for VS Code. Groups staged changes into semantic commits with OpenAI, Anthropic, Groq, Google Gemini, LM Studio, Kimi, and Ollama.",
+  "description": "AI-powered Git commit composer. Turn chaotic multi-file diffs into clean, atomic, reviewable commits using cloud or local LLMs.",
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
-  "version": "3.0.0",
-  "license": "MIT",
+  "version": "3.0.1",
+  "license": "GPL-3.0-or-later",
   "icon": "icon.png",
-  "homepage": "https://github.com/0xshikhar/opengit-composer",
+  "homepage": "https://opengit.shikhar.xyz/",
   "repository": {
     "type": "git",
     "url": "https://github.com/0xshikhar/opengit-composer.git"
@@ -18,23 +18,34 @@
   },
   "keywords": [
     "git",
+    "git-commit",
     "commit",
     "ai",
+    "scm",
+    "source-control",
+    "atomic-commits",
+    "conventional-commits",
+    "gitmoji",
+    "code-review",
+    "diff",
     "openai",
     "anthropic",
     "claude",
     "gemini",
+    "groq",
+    "kimi",
     "lmstudio",
     "ollama",
-    "conventional-commits",
-    "gitmoji",
-    "automation",
+    "local-ai",
+    "privacy",
     "productivity",
     "developer-tools"
   ],
   "categories": [
-    "Other",
-    "AI"
+    "SCM Providers",
+    "AI",
+    "Machine Learning",
+    "Programming Languages"
   ],
   "galleryBanner": {
     "color": "#1a1a2e",
@@ -79,15 +90,18 @@
     "commands": [
       {
         "command": "commitComposer.autoCompose",
-        "title": "Commit Composer: Auto Compose"
+        "category": "OpenGit Composer",
+        "title": "Auto-Compose Semantic Commits"
       },
       {
         "command": "commitComposer.showDebug",
-        "title": "Commit Composer: Show Debug Logs"
+        "category": "OpenGit Composer",
+        "title": "Show Debug Logs"
       },
       {
         "command": "commitComposer.copySanitizedLogs",
-        "title": "Commit Composer: Copy Sanitized Logs"
+        "category": "OpenGit Composer",
+        "title": "Copy Sanitized Logs"
       }
     ],
     "configuration": {

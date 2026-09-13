@@ -41,7 +41,7 @@ Stop creating messy monolithic commits like `git commit -m "fix stuff and update
 Bring your own API keys for leading cloud models (**OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Groq, Kimi**), or run **100% offline & free** using local models with **Ollama**, **LM Studio**, or **TurboFieldfare**.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/0xshikhar/opengit-composer/master/media/composer-preview.png" alt="OpenGit Composer in action" width="820">
+  <img src="https://raw.githubusercontent.com/0xshikhar/opengit-composer/master/media/OpenGit-Composer.png" alt="OpenGit Composer in action" width="820">
 </p>
 
 ### 🛠️ Universal IDE Compatibility

@@ -22,6 +22,7 @@ import {
     getProviderBaseUrl,
     getProviderDisplayName,
     getProviderModelOptions,
+    getModelDisplayName,
     isLocalProvider,
     LocalEndpointConfig,
     modelIdsMatch,
@@ -548,9 +549,14 @@ export default function AIProviderSettingsModal() {
                                             }}
                                         >
                                             <option value="">Default Recommended Model</option>
-                                            {getProviderModelOptions(providerConfig.provider as ProviderName).map((m) => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
+                                            {getProviderModelOptions(providerConfig.provider as ProviderName).map((m) => {
+                                                const label = getModelDisplayName(m);
+                                                return (
+                                                    <option key={m} value={m}>
+                                                        {label !== m ? `${label} (${m})` : m}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 

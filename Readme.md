@@ -110,32 +110,30 @@ Format generated commits according to your project's exact guidelines:
 OpenGit Composer provides universal support for all leading cloud and local AI runtimes:
 
 ### 1. OpenAI
-- **Flagships & Next-Gen**: `chatgpt-6`, `astra-v6`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-4.5-preview`
-- **Reasoning Models**: `o3`, `o3-mini`, `o4-mini`, `o1`, `o1-mini`
-- **Standard & Coding**: `gpt-4o`, `gpt-4o-mini`, `codex-mini`, `gpt-4o-code`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- **Frontier & Next-Gen**: `gpt-6-astra`, `gpt-5.4`
+- **Coding & Reasoning**: `gpt-5.3-codex`, `o3-mini`
+- **Standard & Production**: `gpt-4o`, `gpt-4o-mini`
 
 ### 2. Anthropic Claude
-- **Claude Opus Family**: `claude-opus-5`, `claude-opus-4-6`, `claude-3-opus-latest`, `claude-3-opus-20240229`
-- **Claude Sonnet Family**: `claude-sonnet-4-6`, `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-latest`, `claude-3-5-sonnet-20241022`
-- **Claude Haiku Family**: `claude-haiku-4-5`, `claude-3-5-haiku-latest`, `claude-3-5-haiku-20241022`, `claude-3-haiku-20240307`
-- **Experimental & Creative**: `claude-fable-5`
+- **Frontier & Next-Gen**: `claude-opus-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`
+- **Hybrid Reasoning & Production**: `claude-3-7-sonnet`, `claude-3-5-sonnet`, `claude-3-5-haiku`
 
 ### 3. Google Gemini
-- **Gemini Pro Family**: `gemini-3-pro`, `gemini-2.5-pro`, `gemini-2.0-pro-exp-02-05`, `gemini-1.5-pro`
-- **Gemini Flash Family**: `gemini-3-flash`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`
-- **Gemini Flash-Lite**: `gemini-2.5-flash-lite`, `gemini-2.0-flash-lite`, `gemini-1.5-flash-8b`
-- **Reasoning**: `gemini-2.0-flash-thinking-exp`
+- **Next-Gen Flash**: `gemini-3.8-flash`, `gemini-3.5-flash`
+- **Current Pro & Flash**: `gemini-2.5-pro`, `gemini-2.5-flash`
+- **Legacy Compatibility**: `gemini-1.5-pro`, `gemini-1.5-flash`
 
 ### 4. Groq (Ultra-Fast Inference)
-- **Llama Family**: `llama-3.3-70b-versatile`, `llama-3.1-70b-versatile`, `llama-3.1-8b-instant`, `llama3-70b-8192`, `llama3-8b-8192`
-- **DeepSeek & Qwen Distills**: `deepseek-r1-distill-llama-70b`, `deepseek-r1-distill-qwen-32b`, `qwen-qwq-32b`, `qwen-2.5-coder-32b`
-- **Groq Compounds**: `groq/compound`, `groq/compound-mini`
-- **Open Catalogs**: `mistral-saba-24b`, `mixtral-8x7b-32768`, `gemma2-9b-it`
+- **Flagship & Distills**: `llama-3.3-70b-versatile`, `deepseek-r1-distill-llama-70b`
+- **Reasoning & Speed**: `qwen-qwq-32b`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
 
 ### 5. DeepSeek
-- **Direct Cloud API**: `deepseek-chat` (DeepSeek-V3), `deepseek-reasoner` (DeepSeek-R1), `deepseek-r1`, `deepseek-r1-0528`, `deepseek-v3`, `deepseek-coder`
+- **Direct Cloud API**: `deepseek-chat` (DeepSeek-V3 Chat / Code), `deepseek-reasoner` (DeepSeek-R1 Reasoner)
 
-### 6. Local Offline Runtimes
+### 6. Moonshot AI / Kimi
+- **Flagship & Thinking**: `kimi-k2.5`, `kimi-k2-thinking`, `kimi-k2`, `moonshot-v1-8k`
+
+### 7. Local Offline Runtimes
 - **LM Studio**: `http://localhost:1234/v1` (supports all loaded GGUF models)
 - **Ollama**: `http://localhost:11434` (auto-detects models via `ollama list`)
 - **Custom Endpoints**: TurboFieldfare, vLLM, llama.cpp, LocalAI

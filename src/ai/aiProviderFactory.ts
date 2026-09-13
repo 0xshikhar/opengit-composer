@@ -5,6 +5,7 @@ import { GroqProvider } from './providers/groq';
 import { GeminiProvider } from './providers/gemini';
 import { LMStudioProvider } from './providers/lmstudio';
 import { KimiProvider } from './providers/kimi';
+import { DeepSeekProvider } from './providers/deepseek';
 import { OllamaProvider } from './providers/ollama';
 import { ProviderName, getProviderDefaultModel } from '../utils/constant';
 
@@ -24,6 +25,8 @@ export class AIProviderFactory {
                 return new LMStudioProvider(config);
             case 'kimi':
                 return new KimiProvider(config);
+            case 'deepseek':
+                return new DeepSeekProvider(config);
             case 'ollama':
                 return new OllamaProvider(config);
             default:
@@ -32,7 +35,7 @@ export class AIProviderFactory {
     }
 
     static getSupportedProviders(): string[] {
-        return ['openai', 'anthropic', 'groq', 'gemini', 'google', 'lmstudio', 'kimi', 'ollama'];
+        return ['openai', 'anthropic', 'groq', 'gemini', 'google', 'lmstudio', 'kimi', 'deepseek', 'ollama'];
     }
 
     static getDefaultModel(providerName: string): string {

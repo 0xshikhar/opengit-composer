@@ -12,6 +12,7 @@ import { Logger } from '../../utils/logger';
 export interface ProviderHealthSliceDeps {
     keyManager?: KeyManager;
     configLoader: ConfigLoader;
+    refreshVisibleViews?: () => Promise<void>;
 }
 
 export async function loadKeys(
@@ -169,8 +170,6 @@ export async function saveProviderPreference(
     webview: vscode.Webview
 ): Promise<void> {
     try {
-        void deps;
-
         const vscodeApi = require('vscode');
         const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
         const resolvedModel = model;
@@ -180,6 +179,13 @@ export async function saveProviderPreference(
 
         if (baseUrl && (provider === 'ollama' || provider === 'lmstudio')) {
             await vsConfig.update(provider === 'lmstudio' ? 'lmStudioHost' : 'ollamaHost', baseUrl, true);
+        }
+
+        // Reload the cached config so all subsequent reads immediately reflect the new provider & model
+        deps.configLoader.load();
+
+        if (deps.refreshVisibleViews) {
+            await deps.refreshVisibleViews();
         }
 
         await webview.postMessage({
@@ -205,10 +211,13 @@ export async function saveLocalEndpoints(
     webview: vscode.Webview
 ): Promise<void> {
     try {
-        void deps;
         const vscodeApi = require('vscode');
         const vsConfig = vscodeApi.workspace.getConfiguration('commitComposer');
         await vsConfig.update('customLocalEndpoints', endpoints, true);
+        deps.configLoader.load();
+        if (deps.refreshVisibleViews) {
+            await deps.refreshVisibleViews();
+        }
         await webview.postMessage({
             command: 'localEndpointsLoaded',
             endpoints,
@@ -218,7 +227,7 @@ export async function saveLocalEndpoints(
         Logger.error('Failed to save local endpoints', error);
         await webview.postMessage({
             command: 'localEndpointsLoaded',
-            endpoints,
+            endpoints: [],
             error: message,
         });
     }

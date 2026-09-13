@@ -83,6 +83,7 @@ function createDefaultRegistries(deps: WebviewCommandRouterDeps): WebviewCommand
         providerHealth: createProviderHealthHandlers({
             keyManager: deps.keyManager,
             configLoader: deps.getConfigLoader(),
+            refreshVisibleViews: deps.refreshVisibleViews,
         }),
         workspace: createWorkspaceHandlers({
             getOrchestrator: () => deps.getOrchestrator(),

@@ -28,7 +28,7 @@ import {
     type ProviderName,
 } from '../../../utils/constant';
 
-const CLOUD_PROVIDER_VALUES = ['openai', 'anthropic', 'groq', 'gemini', 'kimi'] as const;
+const CLOUD_PROVIDER_VALUES = ['openai', 'anthropic', 'groq', 'gemini', 'deepseek', 'kimi'] as const;
 
 const CLOUD_PROVIDERS = CLOUD_PROVIDER_VALUES.map((value) => ({
     value,
@@ -215,6 +215,23 @@ export default function AIProviderSettingsModal() {
     const isConnOk = isTestMatching && connectionTest.available && connectionTest.modelAvailable;
     const isConnFailed = isTestMatching && (!connectionTest.available || !connectionTest.modelAvailable);
 
+    const handleSwitchToLocalTab = () => {
+        setActiveTab('local');
+        if (!isLocalProvider(providerConfig.provider)) {
+            const defaultEp = localEndpoints.find((e) => e.id === activeLocalEndpointId) || localEndpoints[0];
+            if (defaultEp) {
+                handleSelectLocalEndpoint(defaultEp);
+            }
+        }
+    };
+
+    const handleSwitchToCloudTab = () => {
+        setActiveTab('cloud');
+        if (isLocalProvider(providerConfig.provider)) {
+            handleCloudProviderChange('openai');
+        }
+    };
+
     return (
         <div className="gc-modal-backdrop" onClick={() => setIsSettingsModalOpen(false)}>
             <div
@@ -249,7 +266,7 @@ export default function AIProviderSettingsModal() {
                         <button
                             type="button"
                             className={`gc-gl-nav-item ${activeTab === 'local' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('local')}
+                            onClick={handleSwitchToLocalTab}
                         >
                             <Server size={15} />
                             <div className="gc-gl-nav-text">
@@ -260,7 +277,7 @@ export default function AIProviderSettingsModal() {
                         <button
                             type="button"
                             className={`gc-gl-nav-item ${activeTab === 'cloud' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('cloud')}
+                            onClick={handleSwitchToCloudTab}
                         >
                             <Cloud size={15} />
                             <div className="gc-gl-nav-text">

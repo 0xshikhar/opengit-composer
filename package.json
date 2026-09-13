@@ -5,7 +5,7 @@
   "publisher": "0xshikhar",
   "publisherName": "0xshikhar",
   "publisherWebsite": "https://shikhar.xyz",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "license": "GPL-3.0-or-later",
   "icon": "icon.png",
   "homepage": "https://opengit.shikhar.xyz/",
@@ -116,6 +116,7 @@
             "gemini",
             "lmstudio",
             "kimi",
+            "deepseek",
             "ollama"
           ],
           "default": "openai",

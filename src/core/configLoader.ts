@@ -51,6 +51,27 @@ export class ConfigLoader {
 
     constructor() {
         this.load();
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const vscode = require('vscode');
+            if (vscode?.workspace?.onDidChangeConfiguration) {
+                vscode.workspace.onDidChangeConfiguration((e: any) => {
+                    if (e.affectsConfiguration('commitComposer')) {
+                        Logger.info('ConfigLoader: Configuration changed event received, reloading config');
+                        this.load();
+                    }
+                });
+            }
+        } catch {
+            // Not in VS Code context (e.g. unit tests)
+        }
+    }
+
+    /**
+     * Reload configuration from all sources.
+     */
+    reload(): ComposerConfig {
+        return this.load();
     }
 
     /**

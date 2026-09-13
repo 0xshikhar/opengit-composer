@@ -152,20 +152,91 @@ export default function App() {
                     composeInCurrentView(message.providerConfig || bootstrap.providerConfig || {});
                     break;
 
-                case 'commitSuccess':
-                    markCommitted(message.draftId);
+                case 'commitSuccess': {
                     setCommitting(false);
+                    const store = useCommitStore.getState();
+                    const currentDrafts = store.drafts;
+                    const remainingDrafts = currentDrafts.filter((d) => d.id !== message.draftId);
+
+                    if (remainingDrafts.length === 0) {
+                        setDrafts([], null, null, null, null);
+                        store.clearFileSelection();
+                        store.selectDraft(null);
+                        store.setQuickCommitMessage('');
+                        setActiveView('tree');
+                    } else {
+                        setDrafts(
+                            remainingDrafts,
+                            store.reasoning,
+                            store.summary,
+                            store.composeSnapshot,
+                            store.composeMeta
+                        );
+                        if (store.selectedDraftId === message.draftId) {
+                            store.selectDraft(remainingDrafts[0].id);
+                        }
+                    }
                     break;
+                }
 
                 case 'commitProgress':
                     setCommitting(true);
                     setCommitProgress(message.progress);
                     break;
 
-                case 'commitAllDone':
+                case 'commitAllDone': {
                     setCommitting(false);
                     setCommitProgress(null);
                     clearWarning();
+                    const store = useCommitStore.getState();
+                    const currentDrafts = store.drafts;
+                    const results = (message as { results?: Array<{ draftId: string; success: boolean; error?: string }> }).results;
+
+                    if (results && Array.isArray(results)) {
+                        const successfulIds = new Set(
+                            results.filter((r) => r.success === true).map((r) => r.draftId)
+                        );
+                        const remainingDrafts = currentDrafts.filter((d) => !successfulIds.has(d.id));
+
+                        if (remainingDrafts.length === 0) {
+                            // All drafts were committed successfully - clean up the UI completely!
+                            setDrafts([], null, null, null, null);
+                            store.clearFileSelection();
+                            store.selectDraft(null);
+                            store.setQuickCommitMessage('');
+                            setActiveView('tree');
+                        } else {
+                            // Only clean up successful drafts; keep failed ones so user can inspect and fix
+                            setDrafts(
+                                remainingDrafts,
+                                store.reasoning,
+                                store.summary,
+                                store.composeSnapshot,
+                                store.composeMeta
+                            );
+                            if (store.selectedDraftId && successfulIds.has(store.selectedDraftId)) {
+                                store.selectDraft(remainingDrafts[0]?.id || null);
+                            }
+                        }
+                    } else {
+                        // Direct commit or batch commit without explicit per-draft results
+                        setDrafts([], null, null, null, null);
+                        store.clearFileSelection();
+                        store.selectDraft(null);
+                        store.setQuickCommitMessage('');
+                        setActiveView('tree');
+                    }
+                    break;
+                }
+
+                case 'providerPreferenceSaved':
+                    if (message.success && message.provider) {
+                        setProviderConfig({
+                            provider: message.provider,
+                            model: message.model || '',
+                            baseUrl: message.baseUrl || undefined,
+                        });
+                    }
                     break;
 
                 case 'warning':

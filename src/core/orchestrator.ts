@@ -450,6 +450,7 @@ export class Orchestrator {
                 ['groq', 'Groq'],
                 ['anthropic', 'Anthropic'],
                 ['kimi', 'Kimi'],
+                ['deepseek', 'DeepSeek'],
             ] as const;
 
             for (const [needle, label] of providerHints) {

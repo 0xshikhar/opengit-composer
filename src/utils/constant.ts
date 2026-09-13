@@ -103,7 +103,6 @@ export const PROVIDERS: ProviderInfo[] = [
             'claude-sonnet-4-6',
             'claude-haiku-4-5',
             'claude-3-7-sonnet',
-            'claude-3-5-sonnet',
             'claude-3-5-haiku',
         ],
         baseUrl: 'apiKey',
@@ -116,7 +115,8 @@ export const PROVIDERS: ProviderInfo[] = [
         defaultModel: 'gemini-2.5-flash',
         models: [
             'gemini-3.8-flash',
-            'gemini-3.5-flash',
+            'gemini-3.6-flash',
+            'gemini-3.1-pro',
             'gemini-2.5-pro',
             'gemini-2.5-flash',
             'gemini-1.5-pro',
@@ -132,9 +132,15 @@ export const PROVIDERS: ProviderInfo[] = [
         defaultModel: 'llama-3.3-70b-versatile',
         models: [
             'llama-3.3-70b-versatile',
-            'deepseek-r1-distill-llama-70b',
-            'qwen-qwq-32b',
             'llama-3.1-8b-instant',
+            'openai/gpt-oss-120b',
+            'openai/gpt-oss-20b',
+            'qwen/qwen3.8-27b',
+            'qwen/qwen3.6-27b',
+            'deepseek-r1-distill-llama-70b',
+            'groq/compound',
+            'groq/compound-mini',
+            'qwen-qwq-32b',
             'mixtral-8x7b-32768',
         ],
         baseUrl: 'apiKey',
@@ -144,10 +150,10 @@ export const PROVIDERS: ProviderInfo[] = [
         id: 'deepseek',
         name: 'DeepSeek',
         requiresApiKey: true,
-        defaultModel: 'deepseek-chat',
+        defaultModel: 'deepseek-flash',
         models: [
-            'deepseek-chat',
-            'deepseek-reasoner',
+            'deepseek-flash',
+            'deepseek-v4-pro',
         ],
         baseUrl: 'apiKey',
         defaultBaseUrl: 'https://api.deepseek.com',
@@ -199,24 +205,30 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
     'claude-haiku-4-5': 'Claude Haiku 4.5',
     'claude-3-7-sonnet': 'Claude 3.7 Sonnet',
-    'claude-3-5-sonnet': 'Claude 3.5 Sonnet',
     'claude-3-5-haiku': 'Claude 3.5 Haiku',
     // Google Gemini
     'gemini-3.8-flash': 'Gemini 3.8 Flash',
-    'gemini-3.5-flash': 'Gemini 3.5 Flash',
+    'gemini-3.6-flash': 'Gemini 3.6 Flash',
+    'gemini-3.1-pro': 'Gemini 3.1 Pro',
     'gemini-2.5-pro': 'Gemini 2.5 Pro',
     'gemini-2.5-flash': 'Gemini 2.5 Flash',
     'gemini-1.5-pro': 'Gemini 1.5 Pro',
     'gemini-1.5-flash': 'Gemini 1.5 Flash',
     // Groq
     'llama-3.3-70b-versatile': 'Llama 3.3 70B Versatile',
-    'deepseek-r1-distill-llama-70b': 'DeepSeek R1 Distill Llama 70B',
-    'qwen-qwq-32b': 'Qwen QwQ 32B',
     'llama-3.1-8b-instant': 'Llama 3.1 8B Instant',
+    'openai/gpt-oss-120b': 'GPT-OSS 120B (OpenAI)',
+    'openai/gpt-oss-20b': 'GPT-OSS 20B (OpenAI)',
+    'qwen/qwen3.8-27b': 'Qwen 3.8 27B',
+    'qwen/qwen3.6-27b': 'Qwen 3.6 27B',
+    'deepseek-r1-distill-llama-70b': 'DeepSeek R1 Distill Llama 70B',
+    'groq/compound': 'Groq Compound',
+    'groq/compound-mini': 'Groq Compound Mini',
+    'qwen-qwq-32b': 'Qwen QwQ 32B',
     'mixtral-8x7b-32768': 'Mixtral 8x7B (32k)',
     // DeepSeek
-    'deepseek-chat': 'DeepSeek-V3 Chat / Code',
-    'deepseek-reasoner': 'DeepSeek-R1 Reasoner',
+    'deepseek-flash': 'DeepSeek-V4.1-Flash',
+    'deepseek-v4-pro': 'DeepSeek-V4-Pro',
     // Kimi
     'kimi-k2.5': 'Kimi K2.5',
     'kimi-k2-thinking': 'Kimi K2 Thinking',
@@ -284,8 +296,8 @@ export function preValidateModelFormat(
     const isValid = validModels.some(validModel => {
         const normalizedValid = validModel.toLowerCase().replace(/[-_.]/g, '');
         return normalizedValid === normalizedInput ||
-               normalizedValid.includes(normalizedInput) ||
-               normalizedInput.includes(normalizedValid);
+            normalizedValid.includes(normalizedInput) ||
+            normalizedInput.includes(normalizedValid);
     });
 
     if (!isValid) {

@@ -12,7 +12,7 @@ suite('AI Provider Factory Test Suite', () => {
     });
 
     test('should create DeepSeek provider', () => {
-        const provider = AIProviderFactory.create('deepseek', { apiKey: 'test', model: 'deepseek-chat' });
+        const provider = AIProviderFactory.create('deepseek', { apiKey: 'test', model: 'deepseek-flash' });
         assert.ok(provider instanceof DeepSeekProvider);
     });
 

@@ -11,6 +11,7 @@ import {
     modelIdsMatch,
     requestWithRetry,
 } from './providerUtils';
+import { getProviderDefaultModel } from '../../utils/constant';
 
 /**
  * DeepSeek provider — uses OpenAI-compatible API format (https://api.deepseek.com/chat/completions).
@@ -94,7 +95,7 @@ export class DeepSeekProvider extends AIProvider {
     }
 
     async validateModelAvailability(): Promise<{ available: boolean; reason?: string; models?: string[] }> {
-        const selectedModel = (this.config.model || 'deepseek-chat').trim();
+        const selectedModel = (this.config.model || getProviderDefaultModel('deepseek') || 'deepseek-flash').trim();
         const baseUrl = this.config.baseUrl || 'https://api.deepseek.com';
         try {
             const response = await axios.get(`${baseUrl}/models`, {
@@ -120,7 +121,7 @@ export class DeepSeekProvider extends AIProvider {
 
     protected async makeRequest(prompt: string): Promise<any> {
         try {
-            const model = this.config.model || 'deepseek-chat';
+            const model = this.config.model || getProviderDefaultModel('deepseek') || 'deepseek-flash';
 
             Logger.debug('DeepSeekProvider: Making API request', { model, promptLength: prompt.length });
 

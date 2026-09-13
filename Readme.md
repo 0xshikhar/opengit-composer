@@ -116,19 +116,21 @@ OpenGit Composer provides universal support for all leading cloud and local AI r
 
 ### 2. Anthropic Claude
 - **Frontier & Next-Gen**: `claude-opus-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`
-- **Hybrid Reasoning & Production**: `claude-3-7-sonnet`, `claude-3-5-sonnet`, `claude-3-5-haiku`
+- **Hybrid Reasoning & Production**: `claude-3-7-sonnet`, `claude-3-5-haiku`
 
 ### 3. Google Gemini
-- **Next-Gen Flash**: `gemini-3.8-flash`, `gemini-3.5-flash`
+- **Next-Gen Flash & Pro**: `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`
 - **Current Pro & Flash**: `gemini-2.5-pro`, `gemini-2.5-flash`
 - **Legacy Compatibility**: `gemini-1.5-pro`, `gemini-1.5-flash`
 
 ### 4. Groq (Ultra-Fast Inference)
-- **Flagship & Distills**: `llama-3.3-70b-versatile`, `deepseek-r1-distill-llama-70b`
-- **Reasoning & Speed**: `qwen-qwq-32b`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
+- **Production & Instant**: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`
+- **OpenAI Open-Weight**: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`
+- **Qwen & Reasoning Distills**: `qwen/qwen3.8-27b`, `qwen/qwen3.6-27b`, `deepseek-r1-distill-llama-70b`, `qwen-qwq-32b`
+- **Groq Compounds & MoE**: `groq/compound`, `groq/compound-mini`, `mixtral-8x7b-32768`
 
 ### 5. DeepSeek
-- **Direct Cloud API**: `deepseek-chat` (DeepSeek-V3 Chat / Code), `deepseek-reasoner` (DeepSeek-R1 Reasoner)
+- **Direct Cloud API**: `deepseek-flash` (DeepSeek-V4.1-Flash), `deepseek-v4-pro` (DeepSeek-V4-Pro-0813, thinking & non-thinking)
 
 ### 6. Moonshot AI / Kimi
 - **Flagship & Thinking**: `kimi-k2.5`, `kimi-k2-thinking`, `kimi-k2`, `moonshot-v1-8k`

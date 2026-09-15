@@ -19,6 +19,8 @@ import { createWebviewCommandRouter } from './host/webviewCommandRouter';
 import { resolveProviderHostAndModel } from '../utils/constant';
 import { AIProviderFactory } from '../ai/aiProviderFactory';
 
+import { GitWatcher } from '../core/git/gitWatcher';
+
 type WebviewSource = 'sidebar' | 'panel';
 
 interface WebviewBootstrapPayload {
@@ -28,7 +30,7 @@ interface WebviewBootstrapPayload {
     logoUri?: string;
 }
 
-export class CommitComposerProvider implements vscode.WebviewViewProvider {
+export class CommitComposerProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     public static readonly viewType = 'commitComposer.sidebarView';
 
     private _view?: vscode.WebviewView;
@@ -40,11 +42,17 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
     private _configLoader?: ConfigLoader;
     private _keyManager?: KeyManager;
     private _messageRouter?: ReturnType<typeof createWebviewCommandRouter>;
+    private _gitWatcher?: GitWatcher;
 
     constructor(extensionUri: vscode.Uri, keyManager?: KeyManager) {
         this._extensionUri = extensionUri;
         this._keyManager = keyManager;
-        Logger.info('CommitComposerProvider: Initialized');
+        this._gitWatcher = new GitWatcher(() => {
+            if ((this._view && this._view.visible) || this._panel) {
+                void this.refreshAllVisibleViews();
+            }
+        });
+        Logger.info('CommitComposerProvider: Initialized with GitWatcher');
     }
 
     public setKeyManager(keyManager: KeyManager) {
@@ -430,6 +438,11 @@ export class CommitComposerProvider implements vscode.WebviewViewProvider {
                 Logger.error('CommitComposerProvider: Failed to refresh target webview', error);
             }
         }
+    }
+
+    public dispose(): void {
+        this._gitWatcher?.dispose();
+        this._gitWatcher = undefined;
     }
 }
 

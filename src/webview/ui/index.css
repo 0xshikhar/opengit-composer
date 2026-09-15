@@ -669,7 +669,8 @@ body {
   color: #e2b93d;
 }
 
-.change-badge.added {
+.change-badge.added,
+.change-badge.untracked {
   background: #2ea04333;
   color: #2ea043;
 }
@@ -2002,7 +2003,8 @@ body {
   color: #facc15;
 }
 
-.badge-added {
+.badge-added,
+.badge-untracked {
   background: rgba(34, 197, 94, 0.2);
   color: #4ade80;
 }

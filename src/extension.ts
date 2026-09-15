@@ -24,7 +24,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(CommitComposerProvider.viewType, provider)
+        vscode.window.registerWebviewViewProvider(CommitComposerProvider.viewType, provider),
+        provider
     );
 
     const autoComposeCommand = vscode.commands.registerCommand(

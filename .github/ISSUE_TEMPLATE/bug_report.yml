@@ -1,0 +1,57 @@
+name: 🐛 Bug Report
+description: Report a reproducible bug or unexpected behavior in OpenGit Composer
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue! Please provide as much detail as possible to help us diagnose and resolve the issue quickly.
+  - type: input
+    id: version
+    attributes:
+      label: OpenGit Composer Version
+      description: What version of OpenGit Composer are you running? (e.g., v3.0.3)
+      placeholder: v3.0.3
+    validations:
+      required: true
+  - type: input
+    id: vscode-version
+    attributes:
+      label: VS Code Version & OS
+      description: What version of VS Code and OS are you using? (e.g. VS Code 1.90, macOS Sequoia / Windows 11)
+      placeholder: VS Code 1.90 on macOS
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Clear steps to reproduce the behavior.
+      placeholder: |
+        1. Stage changes in git
+        2. Open OpenGit Composer
+        3. Click 'Generate Commits'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Output
+      description: Please copy and paste any relevant developer console or git output.
+      render: shell
